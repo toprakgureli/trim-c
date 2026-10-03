@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>trim-c</title>
+  <!-- The 16 to 24 pixel variant of logo.svg: the frame is left out and the strokes are heavier, so the handles and the
+       play mark stay apart when every stroke is only a pixel or two wide. -->
+  <rect x="0" y="0" width="1024" height="1024" rx="200" fill="#1E1F22"/>
+  <g fill="none" stroke="#FFD102" stroke-width="130" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M330 220 H250 A90 90 0 0 0 160 310 V714 A90 90 0 0 0 250 804 H330"/>
+    <path d="M694 220 H774 A90 90 0 0 1 864 310 V714 A90 90 0 0 1 774 804 H694"/>
+  </g>
+  <polygon points="440,390 640,512 440,634" fill="#EA362A" stroke="#EA362A" stroke-width="60" stroke-linejoin="round"/>
+</svg>

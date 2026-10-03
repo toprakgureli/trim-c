@@ -26,7 +26,7 @@
     <Product>trim-c</Product>
     <Copyright>Copyright (c) Toprak Gureli. All rights reserved.</Copyright>
     <NeutralLanguage>en-US</NeutralLanguage>
-    <Version>0.3.0</Version>
+    <Version>0.3.1</Version>
   </PropertyGroup>
 
 </Project>

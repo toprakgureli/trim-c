@@ -1,5 +1,7 @@
 🇹🇷 Türkçe | 🇬🇧 [English](README.md)
 
+<p align="center"><img src="docs/images/logo.svg" alt="trim-c" width="128"></p>
+
 # trim-c
 
 [![CI](https://github.com/toprakgureli/trim-c/actions/workflows/ci.yml/badge.svg)](https://github.com/toprakgureli/trim-c/actions/workflows/ci.yml)

@@ -12,12 +12,22 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!--
+      The icon is drawn from docs/images/logo.svg for 32 pixels and up, and from docs/images/logo-small.svg below that,
+      where the frame around the play mark would blur into the handles. Explorer, the taskbar and the "Open with"
+      entries all take it from the executable.
+    -->
+    <ApplicationIcon>Assets\trim-c.ico</ApplicationIcon>
     <!-- The interface ships in English and Turkish; satellite assemblies for other languages would only add size. -->
     <SatelliteResourceLanguages>en;tr</SatelliteResourceLanguages>
   </PropertyGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="TrimC.Desktop.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\trim-c.ico" />
   </ItemGroup>
 
   <ItemGroup>

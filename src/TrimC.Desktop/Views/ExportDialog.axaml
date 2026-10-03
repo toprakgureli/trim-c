@@ -5,6 +5,7 @@
         x:Class="TrimC.Desktop.Views.ExportDialog"
         x:DataType="vm:ExportDialogViewModel"
         Title="{x:Static res:Strings.ExportDialogTitle}"
+        Icon="/Assets/trim-c.ico"
         Width="480"
         SizeToContent="Height"
         CanResize="False"

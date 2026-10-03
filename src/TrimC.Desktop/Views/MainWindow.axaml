@@ -7,6 +7,7 @@
         x:Class="TrimC.Desktop.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="{Binding Title}"
+        Icon="/Assets/trim-c.ico"
         Width="1440" Height="900"
         MinWidth="900" MinHeight="560"
         WindowStartupLocation="CenterScreen"
