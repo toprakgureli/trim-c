@@ -30,11 +30,13 @@ namespace TrimC.Desktop.Playback
     {
         private const ulong TimePositionObserverId = 1;
         private const ulong PauseObserverId = 2;
+        private const long NoStopPosition = long.MinValue;
 
         private readonly ILogger<MpvPlayer> _logger;
         private nint _handle;
         private Thread? _eventThread;
         private long _positionTicks;
+        private long _stopPositionTicks = NoStopPosition;
         private volatile bool _isPaused = true;
         private volatile bool _isFileLoaded;
         private volatile bool _isDisposed;
@@ -53,6 +55,21 @@ namespace TrimC.Desktop.Playback
 
         /// <inheritdoc/>
         public event EventHandler? StateChanged;
+
+        /// <inheritdoc/>
+        public event EventHandler? StopPositionReached;
+
+        /// <inheritdoc/>
+        public TimeSpan? StopPosition
+        {
+            get
+            {
+                long ticks = Interlocked.Read(ref _stopPositionTicks);
+                return ticks == NoStopPosition ? null : TimeSpan.FromTicks(ticks);
+            }
+
+            set => Interlocked.Exchange(ref _stopPositionTicks, value?.Ticks ?? NoStopPosition);
+        }
 
         /// <inheritdoc/>
         public bool IsReady => _handle != 0 && !_isDisposed;
@@ -280,7 +297,19 @@ namespace TrimC.Desktop.Playback
             {
                 case TimePositionObserverId when property->Format == MpvFormat.Double:
                     double seconds = *(double*)property->Data;
-                    Interlocked.Exchange(ref _positionTicks, TimeSpan.FromSeconds(Math.Max(seconds, 0)).Ticks);
+                    long ticks = TimeSpan.FromSeconds(Math.Max(seconds, 0)).Ticks;
+                    long previous = Interlocked.Exchange(ref _positionTicks, ticks);
+                    if (StopsAt(previous, ticks))
+                    {
+                        // Pausing from this thread stops on the frame that crossed the position; a round trip through
+                        // the UI thread would let one or two more frames through at high frame rates.
+                        _isPaused = true;
+                        SetPaused(true);
+                        StateChanged?.Invoke(this, EventArgs.Empty);
+                        StopPositionReached?.Invoke(this, EventArgs.Empty);
+                        return;
+                    }
+
                     break;
 
                 case PauseObserverId when property->Format == MpvFormat.Flag:
@@ -292,6 +321,12 @@ namespace TrimC.Desktop.Playback
             }
 
             StateChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        private bool StopsAt(long previousTicks, long currentTicks)
+        {
+            long stop = Interlocked.Read(ref _stopPositionTicks);
+            return stop != NoStopPosition && !_isPaused && previousTicks < stop && currentTicks >= stop;
         }
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "libmpv is not available; video preview is disabled")]

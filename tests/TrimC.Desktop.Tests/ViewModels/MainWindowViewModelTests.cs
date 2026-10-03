@@ -175,6 +175,152 @@ namespace TrimC.Desktop.ViewModels.Tests
             Assert.False(_viewModel.IsLanguageSystem);
         }
 
+        [Fact]
+        public async Task Seek_OutsideTheTrim_StaysOnTheKeptFrames()
+        {
+            await OpenAsync();
+            Trim(10, 20);
+
+            SeekTo(5);
+            Assert.Equal(TimeSpan.FromSeconds(10), _viewModel.Position);
+
+            SeekTo(50);
+            Assert.Equal(LastFrameBefore(20), _viewModel.Position);
+            Assert.Equal(LastFrameBefore(20), _player.LastSeek);
+
+            SeekTo(15);
+            Assert.Equal(TimeSpan.FromSeconds(15), _viewModel.Position);
+        }
+
+        [Fact]
+        public async Task Seek_WithTheAdvancedPanelOpen_ReachesTheWholeFile()
+        {
+            await OpenAsync();
+            Trim(10, 20);
+
+            _viewModel.IsAdvancedPanelOpen = true;
+            SeekTo(50);
+
+            Assert.Equal(TimeSpan.FromSeconds(50), _viewModel.Position);
+            Assert.Null(_player.StopPosition);
+        }
+
+        [Fact]
+        public async Task ClosingTheAdvancedPanel_BringsThePlayheadBackIntoTheTrim()
+        {
+            await OpenAsync();
+            Trim(10, 20);
+            _viewModel.IsAdvancedPanelOpen = true;
+            SeekTo(50);
+
+            _viewModel.IsAdvancedPanelOpen = false;
+
+            Assert.Equal(LastFrameBefore(20), _viewModel.Position);
+            Assert.NotNull(_player.StopPosition);
+        }
+
+        [Fact]
+        public async Task StopPosition_FollowsTheEndHandle()
+        {
+            await OpenAsync();
+            Trim(10, 20);
+            Assert.InRange(_player.StopPosition!.Value, LastFrameBefore(20) - FrameDuration(), LastFrameBefore(20));
+
+            Drag(_viewModel.TimelineSegments[0].Id, SegmentEdge.End, 30);
+
+            Assert.InRange(_player.StopPosition!.Value, LastFrameBefore(30) - FrameDuration(), LastFrameBefore(30));
+        }
+
+        [Fact]
+        public async Task Undo_ThatShrinksTheTrim_MovesThePlayheadInside()
+        {
+            await OpenAsync();
+            Trim(10, 20);
+            Drag(_viewModel.TimelineSegments[0].Id, SegmentEdge.End, 30);
+            SeekTo(25);
+
+            _viewModel.UndoCommand.Execute(null);
+
+            Assert.Equal(LastFrameBefore(20), _viewModel.Position);
+        }
+
+        [Fact]
+        public async Task Play_AtTheEndOfTheTrim_StartsAgainFromTheStart()
+        {
+            await OpenAsync();
+            Trim(10, 20);
+            SeekTo(20);
+
+            _viewModel.TogglePlaybackCommand.Execute(null);
+
+            Assert.Equal(TimeSpan.FromSeconds(10), _viewModel.Position);
+            Assert.False(_player.LastPausedRequest);
+        }
+
+        [Fact]
+        public async Task Play_InsideTheTrim_ResumesWhereItIs()
+        {
+            await OpenAsync();
+            Trim(10, 20);
+            SeekTo(14);
+
+            _viewModel.TogglePlaybackCommand.Execute(null);
+
+            Assert.Equal(TimeSpan.FromSeconds(14), _viewModel.Position);
+            Assert.False(_player.LastPausedRequest);
+        }
+
+        [Fact]
+        public async Task ReachingTheEndOfASegment_ContinuesInTheNextOne()
+        {
+            await OpenAsync();
+            SeekTo(30);
+            _viewModel.SetMarkInCommand.Execute(null);
+            SeekTo(40);
+            _viewModel.CutOutCommand.Execute(null);
+            SeekTo(29);
+
+            _player.ReachStopPosition();
+
+            Assert.Equal(TimeSpan.FromSeconds(40), _viewModel.Position);
+            Assert.False(_player.LastPausedRequest);
+        }
+
+        [Fact]
+        public async Task ReachingTheEndOfTheLastSegment_SettlesOnTheLastKeptFrame()
+        {
+            await OpenAsync();
+            Trim(10, 20);
+            SeekTo(19.5);
+
+            _player.ReachStopPosition();
+
+            Assert.Equal(LastFrameBefore(20), _viewModel.Position);
+            Assert.Null(_player.LastPausedRequest);
+        }
+
+        [Fact]
+        public async Task StepFrame_AtTheEndOfTheTrim_StaysPut()
+        {
+            await OpenAsync();
+            Trim(10, 20);
+            SeekTo(20);
+
+            _viewModel.StepForwardCommand.Execute(null);
+
+            Assert.Equal(LastFrameBefore(20), _viewModel.Position);
+        }
+
+        private static TimeSpan FrameDuration() => TimeSpan.FromSeconds(1 / FrameRate);
+
+        private static TimeSpan LastFrameBefore(double seconds) => TimeSpan.FromSeconds(seconds) - FrameDuration();
+
+        private void Trim(double start, double end)
+        {
+            Drag(_viewModel.TimelineSegments[0].Id, SegmentEdge.Start, start);
+            Drag(_viewModel.TimelineSegments[0].Id, SegmentEdge.End, end);
+        }
+
         private async Task OpenAsync() => await _viewModel.OpenFileCommand.ExecuteAsync(s_media.FilePath);
 
         private void Drag(Guid id, SegmentEdge edge, params double[] seconds)
@@ -250,6 +396,10 @@ namespace TrimC.Desktop.ViewModels.Tests
             public Task<string?> PickFolderAsync(string? initialDirectory) => Task.FromResult<string?>(null);
         }
 
+        /// <summary>
+        /// A player without a window: it records commands and reports a paused, unloaded state, so the view model's own
+        /// playhead is what the tests observe.
+        /// </summary>
         private sealed class FakePlayer : IVideoPlayer
         {
             public event EventHandler? StateChanged
@@ -257,6 +407,14 @@ namespace TrimC.Desktop.ViewModels.Tests
                 add { }
                 remove { }
             }
+
+            public event EventHandler? StopPositionReached;
+
+            public TimeSpan? StopPosition { get; set; }
+
+            public TimeSpan? LastSeek { get; private set; }
+
+            public bool? LastPausedRequest { get; private set; }
 
             public bool IsReady => false;
 
@@ -268,6 +426,8 @@ namespace TrimC.Desktop.ViewModels.Tests
 
             public bool IsPaused => true;
 
+            public void ReachStopPosition() => StopPositionReached?.Invoke(this, EventArgs.Empty);
+
             public void Attach(nint windowHandle)
             {
             }
@@ -276,13 +436,9 @@ namespace TrimC.Desktop.ViewModels.Tests
             {
             }
 
-            public void SetPaused(bool paused)
-            {
-            }
+            public void SetPaused(bool paused) => LastPausedRequest = paused;
 
-            public void Seek(TimeSpan position, bool exact)
-            {
-            }
+            public void Seek(TimeSpan position, bool exact) => LastSeek = position;
 
             public void StepFrame(bool backward)
             {

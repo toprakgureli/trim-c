@@ -90,6 +90,8 @@ The code builds on Linux and macOS as well, but the video preview embeds mpv int
 
 1. Open a recording with **Open…**, Ctrl+O, by dropping it on the window, or by right-clicking a video in Explorer and choosing **Open with → trim-c**.
 2. Drag the yellow handles on the timeline to the first and the last frame you want to keep. The preview shows the frame under the handle and the summary above the timeline shows the kept range. Arrow keys step one frame at a time if you want to check a frame before dropping a handle there.
+
+   Preview stays inside the part you keep, so what you watch is what you export. Play starts from the first kept frame, playback stops on the last one, and clicking outside the selection lands on its nearest edge. With several segments, playback skips the parts that are cut out. The limits follow the handles, undo and redo as you edit. Opening **Advanced** lifts them, because the manual tools need the whole file.
 3. Press **Export…** or Ctrl+E. The export window asks for the cut precision, the container and the output folder, and remembers your choices for next time.
 
 ![The export window](docs/images/export-dialog.png)

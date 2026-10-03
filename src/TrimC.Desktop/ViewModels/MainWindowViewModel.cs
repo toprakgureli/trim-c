@@ -42,6 +42,13 @@ namespace TrimC.Desktop.ViewModels
     /// the whole media, so the plain workflow is to drag its two handles and export.
     /// </para>
     /// <para>
+    /// While the advanced panel is closed, preview is confined to what will be exported: every seek is clamped into the
+    /// kept segments, playback flows from one segment straight into the next, and it pauses on the last kept frame.
+    /// Pressing play there starts again from the first kept frame. The limits follow every edit as it happens. With
+    /// the advanced panel open the whole file is reachable again, because the manual tools mark frames outside the
+    /// current segments.
+    /// </para>
+    /// <para>
     /// The player reports state on its own thread. Updates are marshalled to the UI thread through the injected
     /// <see cref="IDispatcher"/>, which keeps the view model free of thread affinity assumptions.
     /// </para>
@@ -118,6 +125,7 @@ namespace TrimC.Desktop.ViewModels
             IsStatusError = toolchain.Probe is null;
 
             _player.StateChanged += OnPlayerStateChanged;
+            _player.StopPositionReached += OnPlayerStopPositionReached;
         }
 
         /// <summary>Gets the segments in timeline order, projected for the segment list.</summary>
@@ -243,6 +251,7 @@ namespace TrimC.Desktop.ViewModels
         public void Dispose()
         {
             _player.StateChanged -= OnPlayerStateChanged;
+            _player.StopPositionReached -= OnPlayerStopPositionReached;
             _loadCancellation?.Cancel();
             _loadCancellation?.Dispose();
         }
@@ -418,14 +427,34 @@ namespace TrimC.Desktop.ViewModels
             }
         }
 
-        /// <summary>Toggles between playing and paused.</summary>
+        /// <summary>
+        /// Toggles between playing and paused. While preview is confined to the kept segments, playing from the last kept
+        /// frame starts again from the first one, so pressing play after a trim always shows the result from the start.
+        /// </summary>
         [RelayCommand]
         private void TogglePlayback()
         {
-            if (Media is not null)
+            if (Media is null)
             {
-                _player.SetPaused(!IsPaused);
+                return;
             }
+
+            if (IsPaused && GetPlaybackRanges() is { Length: > 0 } ranges)
+            {
+                TimeSpan position = Clamp(ranges, Position);
+                int index = IndexOf(ranges, position);
+                if (position >= LastFrame(ranges[index]))
+                {
+                    position = index + 1 < ranges.Length ? ranges[index + 1].Start : ranges[0].Start;
+                }
+
+                if (position != Position)
+                {
+                    SeekTo(position, exact: true);
+                }
+            }
+
+            _player.SetPaused(!IsPaused);
         }
 
         /// <summary>Steps one frame forward.</summary>
@@ -735,8 +764,11 @@ namespace TrimC.Desktop.ViewModels
             }
         }
 
-        partial void OnIsAdvancedPanelOpenChanged(bool value) =>
+        partial void OnIsAdvancedPanelOpenChanged(bool value)
+        {
             _settings.Save(_settings.Current with { IsAdvancedPanelOpen = value });
+            KeepPlayheadInRange();
+        }
 
         partial void OnIsExportingChanged(bool value)
         {
@@ -860,6 +892,12 @@ namespace TrimC.Desktop.ViewModels
             TimelineSegments = segments;
             TrimSummary = DescribeSelection(segments, _cutList.TotalDuration);
             ExportCommand.NotifyCanExecuteChanged();
+
+            // A handle drag positions the preview itself, on the edge being moved.
+            if (_trimSnapshot is null)
+            {
+                KeepPlayheadInRange();
+            }
         }
 
         private bool HasSameIdentities(IReadOnlyList<Segment> segments)
@@ -948,10 +986,142 @@ namespace TrimC.Desktop.ViewModels
 
         private void SeekTo(TimeSpan position, bool exact)
         {
+            TimeRange[]? ranges = GetPlaybackRanges();
+            if (ranges is not null)
+            {
+                position = Clamp(ranges, position);
+            }
+
+            // The stop position changes before the seek is issued, so that reports of the old position still in flight
+            // are measured against the range being entered.
+            UpdateStopPosition(ranges, position);
+
             _pendingSeekTarget = position;
             _pendingSeekTimestamp = Environment.TickCount64;
             Position = position;
             _player.Seek(position, exact);
+        }
+
+        /// <summary>
+        /// Returns the ranges that preview is confined to, or <see langword="null"/> when the whole file is reachable.
+        /// </summary>
+        private TimeRange[]? GetPlaybackRanges()
+        {
+            if (IsAdvancedPanelOpen || _cutList is not { Count: > 0 } list)
+            {
+                return null;
+            }
+
+            TimeRange[] ranges = new TimeRange[list.Count];
+            for (int i = 0; i < ranges.Length; i++)
+            {
+                ranges[i] = list.Segments[i].Range;
+            }
+
+            return ranges;
+        }
+
+        /// <summary>
+        /// Moves the playhead back into the playable ranges after they changed, and keeps the stop position in step.
+        /// </summary>
+        private void KeepPlayheadInRange()
+        {
+            if (Media is null)
+            {
+                return;
+            }
+
+            TimeRange[]? ranges = GetPlaybackRanges();
+            if (ranges is not null && Clamp(ranges, Position) != Position)
+            {
+                SeekTo(Position, exact: true);
+                return;
+            }
+
+            UpdateStopPosition(ranges, Position);
+        }
+
+        private void UpdateStopPosition(TimeRange[]? ranges, TimeSpan position)
+        {
+            if (ranges is null)
+            {
+                _player.StopPosition = null;
+                return;
+            }
+
+            // Frame timestamps reported by the player are rounded to the container's time base, so the stop is placed
+            // half a frame before the last kept frame: the first frame at or after it is exactly that frame.
+            TimeRange range = ranges[IndexOf(ranges, Clamp(ranges, position))];
+            TimeSpan stop = LastFrame(range) - (FrameDuration() / 2);
+            _player.StopPosition = stop > range.Start ? stop : range.Start;
+        }
+
+        private void OnPlayerStopPositionReached(object? sender, EventArgs e) => _dispatcher.Post(ContinueAfterStop);
+
+        /// <summary>
+        /// Continues into the next kept segment after the player paused at the end of one, or settles on the last kept
+        /// frame after the final one.
+        /// </summary>
+        private void ContinueAfterStop()
+        {
+            if (GetPlaybackRanges() is not { Length: > 0 } ranges || _player.StopPosition is not TimeSpan stop)
+            {
+                return;
+            }
+
+            int index = IndexOf(ranges, Clamp(ranges, stop));
+            if (index + 1 < ranges.Length)
+            {
+                SeekTo(ranges[index + 1].Start, exact: true);
+                _player.SetPaused(false);
+                return;
+            }
+
+            // The pause lands on the frame that crossed the stop position. Seeking to the last kept frame makes the
+            // preview and the playhead agree exactly even if the player was a frame late.
+            SeekTo(LastFrame(ranges[index]), exact: true);
+        }
+
+        private TimeSpan LastFrame(TimeRange range)
+        {
+            TimeSpan last = range.End - FrameDuration();
+            return last > range.Start ? last : range.Start;
+        }
+
+        /// <summary>
+        /// Returns the position itself when it is inside a range, otherwise the start of the next range, or the last
+        /// frame of the final range for positions past it.
+        /// </summary>
+        private TimeSpan Clamp(TimeRange[] ranges, TimeSpan position)
+        {
+            foreach (TimeRange range in ranges)
+            {
+                if (position < range.Start)
+                {
+                    return range.Start;
+                }
+
+                if (position < range.End)
+                {
+                    TimeSpan last = LastFrame(range);
+                    return position > last ? last : position;
+                }
+            }
+
+            return LastFrame(ranges[^1]);
+        }
+
+        private static int IndexOf(TimeRange[] ranges, TimeSpan position)
+        {
+            for (int i = 0; i < ranges.Length; i++)
+            {
+                if (position < ranges[i].End)
+                {
+                    return i;
+                }
+            }
+
+            return ranges.Length - 1;
         }
 
         private void StepFrame(bool backward)
@@ -959,6 +1129,32 @@ namespace TrimC.Desktop.ViewModels
             if (Media is null)
             {
                 return;
+            }
+
+            // At the edge of a kept range a frame step continues in the neighbouring range, or stays put at either end.
+            if (GetPlaybackRanges() is { Length: > 0 } ranges)
+            {
+                TimeSpan position = Clamp(ranges, Position);
+                int index = IndexOf(ranges, position);
+                if (!backward && position >= LastFrame(ranges[index]))
+                {
+                    if (index + 1 < ranges.Length)
+                    {
+                        SeekTo(ranges[index + 1].Start, exact: true);
+                    }
+
+                    return;
+                }
+
+                if (backward && position <= ranges[index].Start)
+                {
+                    if (index > 0)
+                    {
+                        SeekTo(LastFrame(ranges[index - 1]), exact: true);
+                    }
+
+                    return;
+                }
             }
 
             if (_player.IsReady)

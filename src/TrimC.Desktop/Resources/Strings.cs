@@ -76,7 +76,7 @@ namespace TrimC.Desktop.Resources
         /// <summary>Gets text like "{0} segments, {1} in total".</summary>
         public static string TrimSummaryMultiple => Get(nameof(TrimSummaryMultiple));
 
-        /// <summary>Gets text like "Drag the yellow handles on the timeline to choose the part to keep.".</summary>
+        /// <summary>Gets text like "Drag the yellow handles to choose the part to keep. Playback stays inside it.".</summary>
         public static string TrimHint => Get(nameof(TrimHint));
 
         /// <summary>Gets text like "Previous keyframe (Ctrl+Left)".</summary>

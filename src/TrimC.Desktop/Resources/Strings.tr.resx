@@ -62,7 +62,7 @@
     <value>{0} segment, toplam {1}</value>
   </data>
   <data name="TrimHint" xml:space="preserve">
-    <value>Saklamak istediğin bölümü seçmek için zaman çizelgesindeki sarı tutamaçları sürükle.</value>
+    <value>Saklamak istediğin bölümü sarı tutamaçlarla seç. Oynatma bu bölümün içinde kalır.</value>
   </data>
   <data name="PreviousKeyframeTooltip" xml:space="preserve">
     <value>Önceki keyframe (Ctrl+Sol ok)</value>

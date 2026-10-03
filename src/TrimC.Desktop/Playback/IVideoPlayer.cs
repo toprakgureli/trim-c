@@ -27,6 +27,22 @@ namespace TrimC.Desktop.Playback
         event EventHandler? StateChanged;
 
         /// <summary>
+        /// Occurs when playback has paused itself on reaching <see cref="StopPosition"/>.
+        /// </summary>
+        event EventHandler? StopPositionReached;
+
+        /// <summary>
+        /// Gets or sets the position at which playback pauses by itself, or <see langword="null"/> to play to the end.
+        /// </summary>
+        /// <remarks>
+        /// Playback pauses on the first frame shown at or after this position, but only when it gets there by playing:
+        /// the position must be crossed from below. A seek that lands past it, or a report that was already in flight
+        /// when the value changed, never pauses playback. The check runs where the player learns about each new frame,
+        /// so the pause takes effect without waiting for the UI thread.
+        /// </remarks>
+        TimeSpan? StopPosition { get; set; }
+
+        /// <summary>
         /// Gets a value indicating whether the player is attached to a window and can accept commands.
         /// </summary>
         bool IsReady { get; }

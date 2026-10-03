@@ -90,6 +90,8 @@ Kod Linux ve macOS'te de derleniyor ancak video önizlemesi mpv'yi yerel bir pen
 
 1. Kaydı **Aç…** düğmesiyle, Ctrl+O ile ya da pencereye sürükleyip bırakarak aç. Dosya Gezgini'nde videoya sağ tıklayıp **Birlikte aç → trim-c** seçeneğini de kullanabilirsin.
 2. Zaman çizelgesindeki sarı tutamaçları saklamak istediğin ilk ve son kareye sürükle. Önizleme tutamacın altındaki kareyi, zaman çizelgesinin üstündeki özet de saklanacak aralığı gösterir. Tutamacı bırakmadan önce bir kareyi kontrol etmek istersen ok tuşlarıyla kare kare ilerleyebilirsin.
+
+   Önizleme saklanacak bölümün içinde kalır, yani izlediğin şey dışa aktaracağın şeyin ta kendisidir. Oynatma ilk saklanan kareden başlar, son saklanan karede durur. Seçimin dışına tıklarsan oynatma imleci seçimin en yakın kenarına gider. Birden fazla segment varsa aradaki çıkarılmış bölümler atlanır. Sınırlar tutamaçları sürükledikçe, geri aldıkça ya da yineledikçe anında güncellenir. **Gelişmiş** paneli açıkken elle düzenleme araçları dosyanın tamamına ihtiyaç duyduğu için bu sınırlar kalkar.
 3. **Dışa aktar…** düğmesine ya da Ctrl+E'ye bas. Açılan pencerede kesim hassasiyetini, kapsayıcıyı ve çıktı klasörünü seçersin. Seçimlerin bir sonraki sefer için hatırlanır.
 
 ![Dışa aktarma penceresi](docs/images/export-dialog.tr.png)

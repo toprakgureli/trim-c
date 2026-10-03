@@ -62,7 +62,7 @@
     <value>{0} segments, {1} in total</value>
   </data>
   <data name="TrimHint" xml:space="preserve">
-    <value>Drag the yellow handles on the timeline to choose the part to keep.</value>
+    <value>Drag the yellow handles to choose the part to keep. Playback stays inside it.</value>
   </data>
   <data name="PreviousKeyframeTooltip" xml:space="preserve">
     <value>Previous keyframe (Ctrl+Left)</value>
