@@ -1,9 +1,11 @@
 // Copyright (c) Toprak Gureli. All rights reserved.
 // Licensed under the MIT license. See LICENSE in the repository root for details.
 
+using System;
 using System.Windows.Input;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using TrimC.Desktop.ViewModels;
 
@@ -45,6 +47,22 @@ namespace TrimC.Desktop.Views
             bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
             bool shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
 
+            // Zooming changes only what the timeline shows, so it is handled by the control rather than the view model.
+            Action? zoom = e.Key switch
+            {
+                Key.OemPlus or Key.Add when ctrl => Timeline.ZoomIn,
+                Key.OemMinus or Key.Subtract when ctrl => Timeline.ZoomOut,
+                Key.D0 or Key.NumPad0 when ctrl => Timeline.ZoomToFit,
+                _ => null,
+            };
+
+            if (zoom is not null)
+            {
+                zoom();
+                e.Handled = true;
+                return;
+            }
+
             ICommand? command = e.Key switch
             {
                 Key.Z when ctrl && shift => vm.RedoCommand,
@@ -62,6 +80,7 @@ namespace TrimC.Desktop.Views
                 Key.O => vm.SetMarkOutCommand,
                 Key.S when !ctrl => vm.SplitCommand,
                 Key.X => vm.CutOutCommand,
+                Key.M when !ctrl => vm.ToggleSoundCommand,
                 Key.Delete => vm.RemoveSelectedCommand,
                 Key.E when ctrl => vm.ExportCommand,
                 Key.Escape when vm.IsExporting => vm.ExportCancelCommand,
@@ -74,6 +93,12 @@ namespace TrimC.Desktop.Views
                 e.Handled = true;
             }
         }
+
+        private void OnZoomIn(object? sender, RoutedEventArgs e) => Timeline.ZoomIn();
+
+        private void OnZoomOut(object? sender, RoutedEventArgs e) => Timeline.ZoomOut();
+
+        private void OnZoomToFit(object? sender, RoutedEventArgs e) => Timeline.ZoomToFit();
 
         private void OnDragOver(object? sender, DragEventArgs e)
         {

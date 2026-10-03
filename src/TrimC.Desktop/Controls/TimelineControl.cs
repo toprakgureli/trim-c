@@ -31,8 +31,13 @@ namespace TrimC.Desktop.Controls
     /// <see cref="SelectSegmentCommand"/> and <see cref="TrimCommand"/>, so all editing state lives in the view model.
     /// </para>
     /// <para>
-    /// The visible window is described by <c>_viewStart</c> and <c>_viewDuration</c>. The mouse wheel pans the window
-    /// and Ctrl+wheel zooms around the pointer.
+    /// The visible window is described by <c>_viewStart</c> and <c>_viewDuration</c>. Ctrl+wheel zooms around the
+    /// pointer, the wheel pans, and dragging with the middle button pans like grabbing the strip. The
+    /// window is also published as <see cref="ScrollOffset"/>, <see cref="ScrollMaximum"/> and
+    /// <see cref="ScrollViewport"/>, in seconds, so that a standard scroll bar can be bound to it.
+    /// </para>
+    /// <para>
+    /// Right-clicking a segment selects it and opens <see cref="SegmentMenu"/>, whose items act on the selection.
     /// </para>
     /// </remarks>
     internal sealed class TimelineControl : Control
@@ -73,10 +78,31 @@ namespace TrimC.Desktop.Controls
         public static readonly StyledProperty<ICommand?> TrimCommandProperty =
             AvaloniaProperty.Register<TimelineControl, ICommand?>(nameof(TrimCommand));
 
+        /// <summary>Defines the <see cref="SegmentMenu"/> property.</summary>
+        public static readonly StyledProperty<ContextMenu?> SegmentMenuProperty =
+            AvaloniaProperty.Register<TimelineControl, ContextMenu?>(nameof(SegmentMenu));
+
+        /// <summary>Defines the <see cref="ScrollOffset"/> property.</summary>
+        public static readonly DirectProperty<TimelineControl, double> ScrollOffsetProperty =
+            AvaloniaProperty.RegisterDirect<TimelineControl, double>(nameof(ScrollOffset), o => o.ScrollOffset, (o, v) => o.ScrollOffset = v);
+
+        /// <summary>Defines the <see cref="ScrollMaximum"/> property.</summary>
+        public static readonly DirectProperty<TimelineControl, double> ScrollMaximumProperty =
+            AvaloniaProperty.RegisterDirect<TimelineControl, double>(nameof(ScrollMaximum), o => o.ScrollMaximum);
+
+        /// <summary>Defines the <see cref="ScrollViewport"/> property.</summary>
+        public static readonly DirectProperty<TimelineControl, double> ScrollViewportProperty =
+            AvaloniaProperty.RegisterDirect<TimelineControl, double>(nameof(ScrollViewport), o => o.ScrollViewport);
+
+        /// <summary>Defines the <see cref="IsZoomed"/> property.</summary>
+        public static readonly DirectProperty<TimelineControl, bool> IsZoomedProperty =
+            AvaloniaProperty.RegisterDirect<TimelineControl, bool>(nameof(IsZoomed), o => o.IsZoomed);
+
         private const double RulerHeight = 20;
         private const double KeyframeTickHeight = 7;
         private const double MinimumLabelSpacing = 90;
         private const double ZoomStep = 1.25;
+        private const double KeyboardZoomStep = 1.6;
         private const double HandleWidth = 10;
         private const double HandleHitRadius = 9;
 
@@ -98,11 +124,24 @@ namespace TrimC.Desktop.Controls
         private static readonly IPen s_playheadPen = new Pen(new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)), 2);
         private static readonly Typeface s_labelTypeface = new(FontFamily.Default);
         private static readonly Cursor s_resizeCursor = new(StandardCursorType.SizeWestEast);
+        private static readonly Cursor s_panCursor = new(StandardCursorType.SizeAll);
+        private static readonly IBrush s_mutedIconBrush = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
+        private static readonly IPen s_mutedIconPen = new Pen(new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71)), 1.5);
+        private static readonly IBrush s_mutedSegmentBrush = new SolidColorBrush(Color.FromArgb(0x40, 0x9C, 0xA3, 0xAF));
+
+        // A quarter of a second still spans several frames at any common frame rate, yet at that zoom every frame is
+        // tens of pixels wide, which is as close as trimming ever needs to look.
+        private static readonly TimeSpan s_minimumViewDuration = TimeSpan.FromSeconds(0.25);
 
         private TimeSpan _viewStart;
         private TimeSpan _viewDuration;
         private bool _isScrubbing;
         private (Guid SegmentId, SegmentEdge Edge)? _draggedHandle;
+        private (double PointerX, TimeSpan ViewStart)? _pan;
+        private double _scrollOffset;
+        private double _scrollMaximum;
+        private double _scrollViewport;
+        private bool _isZoomed;
 
         static TimelineControl()
         {
@@ -181,6 +220,67 @@ namespace TrimC.Desktop.Controls
             set => SetValue(TrimCommandProperty, value);
         }
 
+        /// <summary>Gets or sets the menu opened by right-clicking a segment, after the segment has been selected.</summary>
+        public ContextMenu? SegmentMenu
+        {
+            get => GetValue(SegmentMenuProperty);
+            set => SetValue(SegmentMenuProperty, value);
+        }
+
+        /// <summary>Gets or sets the start of the visible window, in seconds from the start of the media.</summary>
+        public double ScrollOffset
+        {
+            get => _scrollOffset;
+            set
+            {
+                if (Duration <= TimeSpan.Zero || Math.Abs(value - _scrollOffset) < 1e-9)
+                {
+                    return;
+                }
+
+                EnsureView();
+                _viewStart = TimeSpan.FromSeconds(value);
+                ClampView();
+                InvalidateVisual();
+            }
+        }
+
+        /// <summary>Gets the largest <see cref="ScrollOffset"/>, which is zero while the whole media is visible.</summary>
+        public double ScrollMaximum
+        {
+            get => _scrollMaximum;
+            private set => SetAndRaise(ScrollMaximumProperty, ref _scrollMaximum, value);
+        }
+
+        /// <summary>Gets the length of the visible window, in seconds.</summary>
+        public double ScrollViewport
+        {
+            get => _scrollViewport;
+            private set => SetAndRaise(ScrollViewportProperty, ref _scrollViewport, value);
+        }
+
+        /// <summary>Gets a value indicating whether only part of the media is visible.</summary>
+        public bool IsZoomed
+        {
+            get => _isZoomed;
+            private set => SetAndRaise(IsZoomedProperty, ref _isZoomed, value);
+        }
+
+        /// <summary>Shows less time in more detail, keeping the playhead in place when it is visible.</summary>
+        public void ZoomIn() => ZoomAroundFocus(1 / KeyboardZoomStep);
+
+        /// <summary>Shows more time in less detail, keeping the playhead in place when it is visible.</summary>
+        public void ZoomOut() => ZoomAroundFocus(KeyboardZoomStep);
+
+        /// <summary>Shows the whole media.</summary>
+        public void ZoomToFit()
+        {
+            _viewStart = TimeSpan.Zero;
+            _viewDuration = Duration;
+            ClampView();
+            InvalidateVisual();
+        }
+
         /// <inheritdoc/>
         public override void Render(DrawingContext context)
         {
@@ -226,6 +326,7 @@ namespace TrimC.Desktop.Controls
                 // A new file resets the view to show the whole media.
                 _viewStart = TimeSpan.Zero;
                 _viewDuration = Duration;
+                PublishView();
             }
             else if (change.Property == PositionProperty && !_isScrubbing && _draggedHandle is null)
             {
@@ -234,16 +335,47 @@ namespace TrimC.Desktop.Controls
         }
 
         /// <inheritdoc/>
+        protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+        {
+            base.OnAttachedToVisualTree(e);
+            AddHandler(ContextRequestedEvent, OnContextRequested);
+        }
+
+        /// <inheritdoc/>
+        protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+        {
+            RemoveHandler(ContextRequestedEvent, OnContextRequested);
+            base.OnDetachedFromVisualTree(e);
+        }
+
+        /// <inheritdoc/>
         protected override void OnPointerPressed(PointerPressedEventArgs e)
         {
             base.OnPointerPressed(e);
 
-            if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed || Duration <= TimeSpan.Zero)
+            if (Duration <= TimeSpan.Zero)
             {
                 return;
             }
 
+            PointerPointProperties buttons = e.GetCurrentPoint(this).Properties;
             Point point = e.GetPosition(this);
+
+            if (buttons.IsMiddleButtonPressed)
+            {
+                EnsureView();
+                _pan = (point.X, _viewStart);
+                e.Pointer.Capture(this);
+                Cursor = s_panCursor;
+                e.Handled = true;
+                return;
+            }
+
+            if (!buttons.IsLeftButtonPressed)
+            {
+                return;
+            }
+
             e.Pointer.Capture(this);
             Focus();
             e.Handled = true;
@@ -271,7 +403,14 @@ namespace TrimC.Desktop.Controls
             base.OnPointerMoved(e);
 
             Point point = e.GetPosition(this);
-            if (_draggedHandle is not null)
+            if (_pan is (double startX, TimeSpan startView))
+            {
+                _viewStart = startView - (_viewDuration * ((point.X - startX) / Bounds.Width));
+                ClampView();
+                InvalidateVisual();
+                e.Handled = true;
+            }
+            else if (_draggedHandle is not null)
             {
                 RequestTrim(point.X, TrimPhase.Moved);
                 e.Handled = true;
@@ -293,7 +432,14 @@ namespace TrimC.Desktop.Controls
             base.OnPointerReleased(e);
 
             Point point = e.GetPosition(this);
-            if (_draggedHandle is not null)
+            if (_pan is not null)
+            {
+                _pan = null;
+                e.Pointer.Capture(null);
+                Cursor = Cursor.Default;
+                e.Handled = true;
+            }
+            else if (_draggedHandle is not null)
             {
                 RequestTrim(point.X, TrimPhase.Completed);
                 _draggedHandle = null;
@@ -324,6 +470,7 @@ namespace TrimC.Desktop.Controls
 
             _draggedHandle = null;
             _isScrubbing = false;
+            _pan = null;
         }
 
         /// <inheritdoc/>
@@ -340,23 +487,20 @@ namespace TrimC.Desktop.Controls
 
             if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
             {
-                // Zoom around the pointer so that the content under the cursor stays in place.
+                // Zoom around the pointer so that the content under the cursor stays in place. The step follows the
+                // size of the delta, so a precision touchpad zooms smoothly while a wheel notch zooms by one step.
                 double pointerX = e.GetPosition(this).X;
-                TimeSpan anchor = ToTime(pointerX);
-                double factor = e.Delta.Y > 0 ? 1 / ZoomStep : ZoomStep;
-
-                TimeSpan minimum = TimeSpan.FromSeconds(0.5);
-                _viewDuration = Clamp(_viewDuration * factor, minimum, Duration);
-                _viewStart = anchor - (_viewDuration * (pointerX / Bounds.Width));
+                ZoomAround(ToTime(pointerX), pointerX, Math.Pow(ZoomStep, -e.Delta.Y));
             }
             else
             {
-                // Each wheel notch pans a tenth of the visible window, matching the feel of horizontal scrolling elsewhere.
+                // Each wheel notch, with or without Shift, pans a tenth of the visible window, matching the feel of
+                // horizontal scrolling elsewhere. A tilt wheel or a touchpad swipe reports a horizontal delta instead.
                 double delta = e.Delta.Y != 0 ? -e.Delta.Y : e.Delta.X;
                 _viewStart += _viewDuration * (delta / 10);
+                ClampView();
             }
 
-            ClampView();
             InvalidateVisual();
             e.Handled = true;
         }
@@ -445,12 +589,46 @@ namespace TrimC.Desktop.Controls
                 Rect rect = new(left, track.Top, Math.Max(right - left, 2), track.Height - KeyframeTickHeight);
                 bool isSelected = segment.Id == selected?.Id;
                 context.FillRectangle(isSelected ? s_selectedSegmentBrush : s_segmentBrush, rect);
+                if (segment.IsMuted)
+                {
+                    context.FillRectangle(s_mutedSegmentBrush, rect);
+                    DrawMutedIcon(context, rect);
+                }
+
                 if (isSelected)
                 {
                     context.DrawLine(s_selectionFramePen, rect.TopLeft, rect.TopRight);
                     context.DrawLine(s_selectionFramePen, rect.BottomLeft, rect.BottomRight);
                 }
             }
+        }
+
+        private static void DrawMutedIcon(DrawingContext context, Rect segment)
+        {
+            // A speaker with a cross, placed after the start handle; segments too narrow to hold it only get the tint.
+            const double IconWidth = 22;
+            if (segment.Width < HandleWidth + IconWidth + 8)
+            {
+                return;
+            }
+
+            double left = Math.Max(segment.Left, 0) + HandleWidth + 6;
+            double middle = segment.Top + 14;
+            StreamGeometry speaker = new();
+            using (StreamGeometryContext geometry = speaker.Open())
+            {
+                geometry.BeginFigure(new Point(left, middle - 3), isFilled: true);
+                geometry.LineTo(new Point(left + 4, middle - 3));
+                geometry.LineTo(new Point(left + 9, middle - 7));
+                geometry.LineTo(new Point(left + 9, middle + 7));
+                geometry.LineTo(new Point(left + 4, middle + 3));
+                geometry.LineTo(new Point(left, middle + 3));
+                geometry.EndFigure(isClosed: true);
+            }
+
+            context.DrawGeometry(s_mutedIconBrush, null, speaker);
+            context.DrawLine(s_mutedIconPen, new Point(left + 12, middle - 4), new Point(left + 19, middle + 4));
+            context.DrawLine(s_mutedIconPen, new Point(left + 12, middle + 4), new Point(left + 19, middle - 4));
         }
 
         private static void DrawHandle(DrawingContext context, Rect track, double x, SegmentEdge edge)
@@ -580,6 +758,56 @@ namespace TrimC.Desktop.Controls
             Execute(SeekCommand, new TimelineSeekRequest(position, isFinal));
         }
 
+        private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
+        {
+            // A right-click names the segment under the pointer; the menu key on the keyboard names the one under the
+            // playhead.
+            TimeSpan position = e.TryGetPosition(this, out Point point) && point.Y >= RulerHeight ? ToTime(point.X) : Position;
+            if (Duration <= TimeSpan.Zero || FindSegmentAt(position) is not Segment segment || SegmentMenu is not ContextMenu menu)
+            {
+                return;
+            }
+
+            Execute(SelectSegmentCommand, segment.Id);
+
+            // The menu is not part of the visual tree until it opens, so it does not inherit the data context.
+            menu.DataContext = DataContext;
+            menu.Open(this);
+            e.Handled = true;
+        }
+
+        private void ZoomAroundFocus(double factor)
+        {
+            if (Duration <= TimeSpan.Zero || Bounds.Width <= 0)
+            {
+                return;
+            }
+
+            EnsureView();
+
+            // The playhead is what the user is looking at; when it is out of view, the middle of the window is.
+            TimeSpan anchor = Position >= _viewStart && Position <= _viewStart + _viewDuration ? Position : _viewStart + (_viewDuration / 2);
+            ZoomAround(anchor, ToX(anchor), factor);
+            InvalidateVisual();
+        }
+
+        private void ZoomAround(TimeSpan anchor, double anchorX, double factor)
+        {
+            TimeSpan minimum = s_minimumViewDuration < Duration ? s_minimumViewDuration : Duration;
+            _viewDuration = Clamp(_viewDuration * factor, minimum, Duration);
+            _viewStart = anchor - (_viewDuration * (anchorX / Bounds.Width));
+            ClampView();
+        }
+
+        private void PublishView()
+        {
+            bool hasView = Duration > TimeSpan.Zero && _viewDuration > TimeSpan.Zero;
+            ScrollViewport = hasView ? _viewDuration.TotalSeconds : 0;
+            ScrollMaximum = hasView ? Math.Max((Duration - _viewDuration).TotalSeconds, 0) : 0;
+            IsZoomed = hasView && _viewDuration < Duration;
+            SetAndRaise(ScrollOffsetProperty, ref _scrollOffset, hasView ? _viewStart.TotalSeconds : 0);
+        }
+
         private void KeepPlayheadVisible()
         {
             if (_viewDuration <= TimeSpan.Zero || _viewDuration >= Duration)
@@ -602,12 +830,14 @@ namespace TrimC.Desktop.Controls
             {
                 _viewStart = TimeSpan.Zero;
                 _viewDuration = Duration;
+                PublishView();
             }
         }
 
         private void ClampView()
         {
             _viewStart = Clamp(_viewStart, TimeSpan.Zero, Duration - _viewDuration);
+            PublishView();
         }
 
         private double ToX(TimeSpan time) => (time - _viewStart).TotalSeconds / _viewDuration.TotalSeconds * Bounds.Width;

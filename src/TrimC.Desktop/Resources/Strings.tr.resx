@@ -154,18 +154,6 @@
   <data name="SnapLabel" xml:space="preserve">
     <value>Kesimin başladığı nokta</value>
   </data>
-  <data name="OutputFolderLabel" xml:space="preserve">
-    <value>Çıktı klasörü</value>
-  </data>
-  <data name="NextToSource" xml:space="preserve">
-    <value>Kaynak dosyanın yanında</value>
-  </data>
-  <data name="ChangeFolderButton" xml:space="preserve">
-    <value>Değiştir…</value>
-  </data>
-  <data name="UseSourceFolderButton" xml:space="preserve">
-    <value>Kaynak klasörünü kullan</value>
-  </data>
   <data name="OpenFolderWhenDone" xml:space="preserve">
     <value>Bitince klasörü aç</value>
   </data>
@@ -313,10 +301,52 @@
   <data name="MediaFilesFilter" xml:space="preserve">
     <value>Medya dosyaları</value>
   </data>
-  <data name="FolderDialogTitle" xml:space="preserve">
-    <value>Dışa aktarılacak klasör</value>
-  </data>
   <data name="ShellFileTypeName" xml:space="preserve">
     <value>Video (trim-c)</value>
+  </data>
+  <data name="MenuRemoveSound" xml:space="preserve">
+    <value>Sesi kaldır</value>
+  </data>
+  <data name="MenuRestoreSound" xml:space="preserve">
+    <value>Sesi geri getir</value>
+  </data>
+  <data name="MenuDeleteClip" xml:space="preserve">
+    <value>Klibi sil</value>
+  </data>
+  <data name="MutedBadge" xml:space="preserve">
+    <value>Sessiz</value>
+  </data>
+  <data name="StatusSoundRemoved" xml:space="preserve">
+    <value>{0} – {1} arasının sesi kaldırıldı. Bu bölüm sessiz aktarılacak.</value>
+  </data>
+  <data name="StatusSoundRestored" xml:space="preserve">
+    <value>{0} – {1} arasının sesi geri getirildi.</value>
+  </data>
+  <data name="SaveDialogTitle" xml:space="preserve">
+    <value>Dışa aktarılan dosyayı kaydet</value>
+  </data>
+  <data name="SaveDialogSeveralTitle" xml:space="preserve">
+    <value>Dosyalara ad ver (her segment ayrı bir dosya olur)</value>
+  </data>
+  <data name="FileTypeMp4" xml:space="preserve">
+    <value>MP4 videosu</value>
+  </data>
+  <data name="FileTypeMatroska" xml:space="preserve">
+    <value>Matroska videosu</value>
+  </data>
+  <data name="FileTypeQuickTime" xml:space="preserve">
+    <value>QuickTime videosu</value>
+  </data>
+  <data name="ZoomInTooltip" xml:space="preserve">
+    <value>Yakınlaştır (Ctrl+tekerlek ya da Ctrl+=)</value>
+  </data>
+  <data name="ZoomOutTooltip" xml:space="preserve">
+    <value>Uzaklaştır (Ctrl+tekerlek ya da Ctrl+-)</value>
+  </data>
+  <data name="ZoomFitButton" xml:space="preserve">
+    <value>Sığdır</value>
+  </data>
+  <data name="ZoomFitTooltip" xml:space="preserve">
+    <value>Videonun tamamını göster (Ctrl+0)</value>
   </data>
 </root>

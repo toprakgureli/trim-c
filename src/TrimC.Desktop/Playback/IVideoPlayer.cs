@@ -68,6 +68,12 @@ namespace TrimC.Desktop.Playback
         bool IsPaused { get; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether the sound of the preview is silenced.
+        /// </summary>
+        /// <remarks>The value may be set before a window is attached; it applies as soon as the player starts.</remarks>
+        bool IsMuted { get; set; }
+
+        /// <summary>
         /// Starts the player inside the specified native window.
         /// </summary>
         /// <param name="windowHandle">The platform handle of the window to render into (an HWND on Windows, an XID on X11).</param>

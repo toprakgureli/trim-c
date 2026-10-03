@@ -30,9 +30,14 @@
     <Style Selector="TextBlock.error">
       <Setter Property="Foreground" Value="#F87171" />
     </Style>
+    <Style Selector="Button.zoom">
+      <Setter Property="MinWidth" Value="30" />
+      <Setter Property="Padding" Value="8,1" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
   </Window.Styles>
 
-  <Grid RowDefinitions="Auto,*,Auto,104,Auto">
+  <Grid RowDefinitions="Auto,*,Auto,Auto,Auto">
 
     <!-- Top bar -->
     <Border Grid.Row="0" Padding="12,8" Background="#1E1F22">
@@ -93,7 +98,13 @@
                     <Run Text=" &#x2192; " />
                     <Run Text="{Binding EndText}" />
                   </TextBlock>
-                  <TextBlock Grid.Column="2" Margin="8,0,0,0" Classes="caption" FontFamily="Consolas,Menlo,monospace" Text="{Binding DurationText}" />
+                  <StackPanel Grid.Column="2" Margin="8,0,0,0" Orientation="Horizontal" Spacing="6">
+                    <!-- The same crossed-out speaker the timeline draws on a muted segment. -->
+                    <Path VerticalAlignment="Center" Width="18" Height="16" Fill="#F87171" Stroke="#F87171" StrokeThickness="1.5"
+                          Data="M0,5 L4,5 L9,1 L9,15 L4,11 L0,11 Z M12,5 L17,11 M12,11 L17,5"
+                          IsVisible="{Binding IsMuted}" ToolTip.Tip="{x:Static res:Strings.MutedBadge}" />
+                    <TextBlock Classes="caption" FontFamily="Consolas,Menlo,monospace" Text="{Binding DurationText}" />
+                  </StackPanel>
                   <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,4,0,0" PlaceholderText="{x:Static res:Strings.SegmentLabelPlaceholder}" Text="{Binding Label}" />
                 </Grid>
               </DataTemplate>
@@ -143,17 +154,45 @@
       </Grid>
     </Border>
 
-    <!-- Timeline -->
-    <controls:TimelineControl Grid.Row="3"
-                              Duration="{Binding Duration}"
-                              Position="{Binding Position}"
-                              Keyframes="{Binding Keyframes}"
-                              Segments="{Binding TimelineSegments}"
-                              SelectedSegmentId="{Binding SelectedSegmentId}"
-                              MarkIn="{Binding MarkIn}"
-                              SeekCommand="{Binding SeekCommand}"
-                              SelectSegmentCommand="{Binding SelectSegmentCommand}"
-                              TrimCommand="{Binding TrimCommand}" />
+    <!-- Timeline, with a scroll bar and zoom buttons for moving around a zoomed-in view -->
+    <Grid Grid.Row="3" RowDefinitions="104,Auto">
+      <controls:TimelineControl x:Name="Timeline"
+                                Duration="{Binding Duration}"
+                                Position="{Binding Position}"
+                                Keyframes="{Binding Keyframes}"
+                                Segments="{Binding TimelineSegments}"
+                                SelectedSegmentId="{Binding SelectedSegmentId}"
+                                MarkIn="{Binding MarkIn}"
+                                SeekCommand="{Binding SeekCommand}"
+                                SelectSegmentCommand="{Binding SelectSegmentCommand}"
+                                TrimCommand="{Binding TrimCommand}">
+        <controls:TimelineControl.SegmentMenu>
+          <ContextMenu>
+            <MenuItem Header="{x:Static res:Strings.MenuRemoveSound}" Command="{Binding ToggleSoundCommand}" InputGesture="M" IsVisible="{Binding !IsSelectedMuted}" />
+            <MenuItem Header="{x:Static res:Strings.MenuRestoreSound}" Command="{Binding ToggleSoundCommand}" InputGesture="M" IsVisible="{Binding IsSelectedMuted}" />
+            <Separator />
+            <MenuItem Header="{x:Static res:Strings.MenuDeleteClip}" Command="{Binding RemoveSelectedCommand}" InputGesture="Delete" />
+          </ContextMenu>
+        </controls:TimelineControl.SegmentMenu>
+      </controls:TimelineControl>
+
+      <Border Grid.Row="1" Padding="8,3" Background="#1E1F22" IsVisible="{Binding HasMedia}">
+        <Grid ColumnDefinitions="*,Auto">
+          <ScrollBar Orientation="Horizontal" VerticalAlignment="Center" AllowAutoHide="False" Minimum="0"
+                     Maximum="{Binding #Timeline.ScrollMaximum}"
+                     ViewportSize="{Binding #Timeline.ScrollViewport}"
+                     LargeChange="{Binding #Timeline.ScrollViewport}"
+                     Value="{Binding #Timeline.ScrollOffset, Mode=TwoWay}"
+                     IsEnabled="{Binding #Timeline.IsZoomed}" />
+          <StackPanel Grid.Column="1" Margin="10,0,0,0" Orientation="Horizontal" Spacing="4">
+            <Button Classes="zoom" Content="&#x2212;" Click="OnZoomOut" ToolTip.Tip="{x:Static res:Strings.ZoomOutTooltip}" />
+            <Button Classes="zoom" Content="+" Click="OnZoomIn" ToolTip.Tip="{x:Static res:Strings.ZoomInTooltip}" />
+            <Button Classes="zoom" Content="{x:Static res:Strings.ZoomFitButton}" Click="OnZoomToFit" IsEnabled="{Binding #Timeline.IsZoomed}"
+                    ToolTip.Tip="{x:Static res:Strings.ZoomFitTooltip}" />
+          </StackPanel>
+        </Grid>
+      </Border>
+    </Grid>
 
     <!-- Status bar -->
     <Border Grid.Row="4" Padding="12,4" Background="#1E1F22">

@@ -33,6 +33,11 @@ namespace TrimC.Export
     /// joined byte by byte, without re-timing. Only the two partial GOPs are ever encoded, so the cost and the
     /// quality impact do not grow with the length of the segment.
     /// </para>
+    /// <para>
+    /// A muted segment loses its audio streams when it becomes a file of its own, and so does a merge in which every
+    /// segment is muted. When muted and audible segments are merged, the muted ones carry silence encoded in the codec
+    /// of the source, because every part of a concatenation must have the same streams.
+    /// </para>
     /// </remarks>
     public static class ExportPlanner
     {
@@ -88,10 +93,17 @@ namespace TrimC.Export
             }
 
             ContainerFormat container = ContainerFormats.Resolve(options.Container, source.FilePath);
-            string extension = ContainerFormats.GetExtension(container);
-            bool fastStart = options.FastStart && ContainerFormats.IsIsoBaseMedia(container);
             IReadOnlyList<int> streamIndexes = SelectStreams(source, container, options.StreamIndexes);
-            OutputFileNamer namer = new(options.OutputDirectory, source.FilePath, fileExists);
+            PlanContext context = new(
+                source,
+                keyframes,
+                container,
+                ContainerFormats.GetExtension(container),
+                options.FastStart && ContainerFormats.IsIsoBaseMedia(container),
+                streamIndexes,
+                SelectAudio(source, streamIndexes),
+                new OutputFileNamer(options.OutputDirectory, source.FilePath, options.OutputName, fileExists),
+                !string.IsNullOrWhiteSpace(options.OutputName));
 
             MediaStreamInfo? video = source.PrimaryVideoStream;
             bool exportsVideo = video is not null && keyframes.Count > 0 && streamIndexes.Contains(video.Index);
@@ -99,44 +111,51 @@ namespace TrimC.Export
             // Audio has no GOP structure, so a keyframe-mode copy of audio-only media is already exact.
             if (options.CutMode == CutMode.FrameAccurate && exportsVideo)
             {
-                return PlanFrameAccurate(source, video!, keyframes, segments, options.Mode, container, extension, fastStart, streamIndexes, namer);
+                return PlanFrameAccurate(context, video!, segments, options.Mode);
             }
 
             List<(Segment Segment, TimeRange Range)> aligned = Align(segments, keyframes, options.SnapMode);
 
             return options.Mode == ExportMode.Merge && aligned.Count > 1
-                ? PlanMerge(source, keyframes, aligned, container, extension, fastStart, streamIndexes, namer)
-                : PlanSeparate(source, keyframes, aligned, container, extension, fastStart, streamIndexes, namer);
+                ? PlanMerge(context, aligned)
+                : PlanSeparate(context, aligned);
         }
 
-        private static ExportPlan PlanFrameAccurate(
-            MediaInfo source,
-            MediaStreamInfo video,
-            KeyframeIndex keyframes,
-            IReadOnlyList<Segment> segments,
-            ExportMode mode,
-            ContainerFormat container,
-            string extension,
-            bool fastStart,
-            IReadOnlyList<int> selectedStreams,
-            OutputFileNamer namer)
+        private static bool CanSilence(string codecName) =>
+            codecName is "aac" or "opus" or "mp3" or "ac3" or "eac3" or "flac" or "vorbis" or "alac" ||
+            codecName.StartsWith("pcm_", StringComparison.Ordinal);
+
+        private static List<MediaStreamInfo> SelectAudio(MediaInfo source, IReadOnlyList<int> streamIndexes)
+        {
+            List<MediaStreamInfo> audio = [];
+            foreach (MediaStreamInfo stream in source.Streams)
+            {
+                if (stream.Kind == StreamKind.Audio && streamIndexes.Contains(stream.Index))
+                {
+                    audio.Add(stream);
+                }
+            }
+
+            audio.Sort((left, right) => left.Index.CompareTo(right.Index));
+            return audio;
+        }
+
+        private static ExportPlan PlanFrameAccurate(PlanContext context, MediaStreamInfo video, IReadOnlyList<Segment> segments, ExportMode mode)
         {
             if (video.CodecName is not ("h264" or "hevc"))
             {
                 throw new ArgumentException(
                     $"Frame-accurate cutting supports H.264 and HEVC video, but this file uses {video.CodecName}. Use keyframe mode instead.",
-                    nameof(source));
+                    nameof(video));
             }
 
+            MediaInfo source = context.Source;
+
             // Transport stream parts carry only audio and video; other streams cannot be split and rejoined.
-            List<int> audioStreams = [];
-            foreach (MediaStreamInfo stream in source.Streams)
-            {
-                if (stream.Kind == StreamKind.Audio && selectedStreams.Contains(stream.Index))
-                {
-                    audioStreams.Add(stream.Index);
-                }
-            }
+            List<int> audioStreams = context.AudioStreams.Select(stream => stream.Index).ToList();
+
+            // A merge keeps an audio track while any segment is audible; muted segments then contribute silence.
+            bool mergeHasSound = mode == ExportMode.Merge && segments.Any(segment => !segment.IsMuted);
 
             // Positions reported by the player and the keyframe index can differ by rounding; half a frame is the largest
             // difference that still identifies the same frame.
@@ -149,20 +168,21 @@ namespace TrimC.Export
             List<string> otherParts = [];
             TimeSpan outputPosition = TimeSpan.Zero;
             int ordinal = 0;
-            string NextPartPath() => namer.ForTemporaryPart(ordinal++, ".ts");
+            string NextPartPath() => context.Namer.ForTemporaryPart(ordinal++, ".ts");
 
             foreach (Segment segment in segments)
             {
                 // Separate files each start at zero; merged segments follow each other on one timeline.
                 TimeSpan offset = (mode == ExportMode.Merge ? outputPosition : TimeSpan.Zero) - segment.Range.Start;
 
-                foreach (ExportStep part in CreateVideoParts(source, video, keyframes, segment.Range, offset, tolerance, NextPartPath))
+                foreach (ExportStep part in CreateVideoParts(source, video, context.Keyframes, segment.Range, offset, tolerance, NextPartPath))
                 {
                     steps.Add(part);
                     videoParts.Add(part.OutputPath);
                 }
 
-                if (audioStreams.Count > 0)
+                bool hasSound = mode == ExportMode.Merge ? mergeHasSound : !segment.IsMuted;
+                if (audioStreams.Count > 0 && hasSound)
                 {
                     CopyRangeStep audio = new()
                     {
@@ -172,6 +192,7 @@ namespace TrimC.Export
                         StartsExactly = true,
                         TimestampOffset = offset,
                         StreamIndexes = audioStreams,
+                        SilencedStreams = segment.IsMuted ? context.Silenced() : [],
                         OutputPath = NextPartPath(),
                         Container = ContainerFormat.MpegTransportStream,
                     };
@@ -186,8 +207,10 @@ namespace TrimC.Export
                     continue;
                 }
 
-                string outputPath = namer.ForSegment(segment, segment.Range, extension);
-                steps.Add(CreateMuxStep(videoParts, otherParts, segment.Range.Duration, container, fastStart, outputPath));
+                string outputPath = context.UsesChosenName && segments.Count == 1
+                    ? context.Namer.ForChosenName(context.Extension)
+                    : context.Namer.ForSegment(segment, segment.Range, context.Extension);
+                steps.Add(CreateMuxStep(videoParts, otherParts, segment.Range.Duration, context.Container, context.FastStart, outputPath));
                 outputs.Add(outputPath);
                 temporaries.AddRange(videoParts);
                 temporaries.AddRange(otherParts);
@@ -197,14 +220,20 @@ namespace TrimC.Export
 
             if (mode == ExportMode.Merge)
             {
-                string outputPath = namer.ForMerged(extension);
-                steps.Add(CreateMuxStep(videoParts, otherParts, outputPosition, container, fastStart, outputPath));
+                string outputPath = context.UsesChosenName ? context.Namer.ForChosenName(context.Extension) : context.Namer.ForMerged(context.Extension);
+                steps.Add(CreateMuxStep(videoParts, otherParts, outputPosition, context.Container, context.FastStart, outputPath));
                 outputs.Add(outputPath);
                 temporaries.AddRange(videoParts);
                 temporaries.AddRange(otherParts);
             }
 
-            return new ExportPlan { Steps = steps, OutputFiles = outputs, TemporaryFiles = temporaries };
+            return new ExportPlan
+            {
+                Steps = steps,
+                OutputFiles = outputs,
+                TemporaryFiles = temporaries,
+                ReplaceableFiles = context.UsesChosenName && outputs.Count == 1 ? outputs : [],
+            };
         }
 
         private static List<ExportStep> CreateVideoParts(
@@ -370,84 +399,154 @@ namespace TrimC.Export
             return false;
         }
 
-        private static ExportPlan PlanSeparate(
-            MediaInfo source,
-            KeyframeIndex keyframes,
-            List<(Segment Segment, TimeRange Range)> aligned,
-            ContainerFormat container,
-            string extension,
-            bool fastStart,
-            IReadOnlyList<int> streamIndexes,
-            OutputFileNamer namer)
+        private static ExportPlan PlanSeparate(PlanContext context, List<(Segment Segment, TimeRange Range)> aligned)
         {
             List<ExportStep> steps = new(aligned.Count);
             List<string> outputs = new(aligned.Count);
+            bool usesChosenName = context.UsesChosenName && aligned.Count == 1;
 
             foreach ((Segment segment, TimeRange range) in aligned)
             {
-                string outputPath = namer.ForSegment(segment, range, extension);
-                steps.Add(CreateCopyStep(source, keyframes, range, container, fastStart, streamIndexes, outputPath));
+                string outputPath = usesChosenName
+                    ? context.Namer.ForChosenName(context.Extension)
+                    : context.Namer.ForSegment(segment, range, context.Extension);
+                IReadOnlyList<int> streams = segment.IsMuted ? context.WithoutAudio() : context.StreamIndexes;
+                steps.Add(CreateCopyStep(context, range, streams, [], context.FastStart, outputPath));
                 outputs.Add(outputPath);
             }
 
-            return new ExportPlan { Steps = steps, OutputFiles = outputs, TemporaryFiles = [] };
+            return new ExportPlan
+            {
+                Steps = steps,
+                OutputFiles = outputs,
+                TemporaryFiles = [],
+                ReplaceableFiles = usesChosenName ? outputs : [],
+            };
         }
 
-        private static ExportPlan PlanMerge(
-            MediaInfo source,
-            KeyframeIndex keyframes,
-            List<(Segment Segment, TimeRange Range)> aligned,
-            ContainerFormat container,
-            string extension,
-            bool fastStart,
-            IReadOnlyList<int> streamIndexes,
-            OutputFileNamer namer)
+        private static ExportPlan PlanMerge(PlanContext context, List<(Segment Segment, TimeRange Range)> aligned)
         {
             List<ExportStep> steps = new(aligned.Count + 1);
             List<string> parts = new(aligned.Count);
             TimeSpan total = TimeSpan.Zero;
 
+            // Every part of a concatenation must have the same streams: without any audible segment the audio is left
+            // out altogether, otherwise muted segments carry silence.
+            bool hasSound = aligned.Any(item => !item.Segment.IsMuted);
+            IReadOnlyList<int> streams = hasSound || context.AudioStreams.Count == 0 ? context.StreamIndexes : context.WithoutAudio();
+
             for (int i = 0; i < aligned.Count; i++)
             {
-                TimeRange range = aligned[i].Range;
-                string partPath = namer.ForTemporaryPart(i, extension);
+                (Segment segment, TimeRange range) = aligned[i];
+                string partPath = context.Namer.ForTemporaryPart(i, context.Extension);
+                IReadOnlyList<MediaStreamInfo> silenced = hasSound && segment.IsMuted ? context.Silenced() : [];
 
                 // Parts are concatenated afterwards; relocating the index of each part would be wasted I/O.
-                steps.Add(CreateCopyStep(source, keyframes, range, container, fastStart: false, streamIndexes, partPath));
+                steps.Add(CreateCopyStep(context, range, streams, silenced, fastStart: false, partPath));
                 parts.Add(partPath);
                 total += range.Duration;
             }
 
-            string outputPath = namer.ForMerged(extension);
+            string outputPath = context.UsesChosenName ? context.Namer.ForChosenName(context.Extension) : context.Namer.ForMerged(context.Extension);
             steps.Add(new ConcatStep
             {
                 InputPaths = parts,
                 OutputPath = outputPath,
-                Container = container,
+                Container = context.Container,
                 TotalDuration = total,
-                FastStart = fastStart,
+                FastStart = context.FastStart,
             });
 
-            return new ExportPlan { Steps = steps, OutputFiles = [outputPath], TemporaryFiles = parts };
+            return new ExportPlan
+            {
+                Steps = steps,
+                OutputFiles = [outputPath],
+                TemporaryFiles = parts,
+                ReplaceableFiles = context.UsesChosenName ? [outputPath] : [],
+            };
         }
 
         private static CopyRangeStep CreateCopyStep(
-            MediaInfo source,
-            KeyframeIndex keyframes,
+            PlanContext context,
             TimeRange range,
-            ContainerFormat container,
-            bool fastStart,
             IReadOnlyList<int> streamIndexes,
+            IReadOnlyList<MediaStreamInfo> silencedStreams,
+            bool fastStart,
             string outputPath) =>
             new()
             {
-                SourcePath = source.FilePath,
+                SourcePath = context.Source.FilePath,
                 Range = range,
-                SeekPosition = GetSeekPosition(range, keyframes),
+                SeekPosition = GetSeekPosition(range, context.Keyframes),
                 StreamIndexes = streamIndexes,
+                SilencedStreams = silencedStreams,
                 OutputPath = outputPath,
-                Container = container,
+                Container = context.Container,
                 FastStart = fastStart,
             };
+
+        /// <summary>
+        /// The inputs every part of a plan is built from.
+        /// </summary>
+        /// <param name="Source">The probed source media.</param>
+        /// <param name="Keyframes">The keyframe index of the primary video stream.</param>
+        /// <param name="Container">The resolved output container.</param>
+        /// <param name="Extension">The file extension of <paramref name="Container"/>.</param>
+        /// <param name="FastStart">Whether the index of the final files is placed at the start.</param>
+        /// <param name="StreamIndexes">The selected source streams, in index order.</param>
+        /// <param name="AudioStreams">The selected audio streams, in index order.</param>
+        /// <param name="Namer">Names the output and temporary files.</param>
+        /// <param name="UsesChosenName">Whether a single output file takes the name the user chose.</param>
+        private sealed record PlanContext(
+            MediaInfo Source,
+            KeyframeIndex Keyframes,
+            ContainerFormat Container,
+            string Extension,
+            bool FastStart,
+            IReadOnlyList<int> StreamIndexes,
+            IReadOnlyList<MediaStreamInfo> AudioStreams,
+            OutputFileNamer Namer,
+            bool UsesChosenName)
+        {
+            /// <summary>Returns the selected streams without audio, for a muted segment exported on its own.</summary>
+            /// <returns>The remaining stream indexes.</returns>
+            /// <exception cref="ArgumentException">The source has nothing but audio.</exception>
+            public List<int> WithoutAudio()
+            {
+                List<int> indexes = [];
+                foreach (int index in StreamIndexes)
+                {
+                    if (!AudioStreams.Any(stream => stream.Index == index))
+                    {
+                        indexes.Add(index);
+                    }
+                }
+
+                if (indexes.Count == 0)
+                {
+                    throw new ArgumentException("A muted segment of a file that only has sound leaves nothing to export.", nameof(StreamIndexes));
+                }
+
+                return indexes;
+            }
+
+            /// <summary>Returns the audio streams to silence for a muted segment that is merged with audible ones.</summary>
+            /// <returns>The audio streams.</returns>
+            /// <exception cref="ArgumentException">Silence cannot be produced in the codec of one of the streams.</exception>
+            public IReadOnlyList<MediaStreamInfo> Silenced()
+            {
+                foreach (MediaStreamInfo stream in AudioStreams)
+                {
+                    if (!CanSilence(stream.CodecName) || stream.SampleRate is null || (stream.Channels is null && stream.ChannelLayout is null))
+                    {
+                        throw new ArgumentException(
+                            $"Merging a muted segment needs silence in the {stream.CodecName} codec, which cannot be produced. Export the segments as separate files instead.",
+                            nameof(AudioStreams));
+                    }
+                }
+
+                return AudioStreams;
+            }
+        }
     }
 }

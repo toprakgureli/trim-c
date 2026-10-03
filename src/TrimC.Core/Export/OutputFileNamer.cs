@@ -35,14 +35,45 @@ namespace TrimC.Export
         /// <param name="fileExists">A predicate that reports whether a path is already taken on disk.</param>
         /// <exception cref="ArgumentNullException">Any argument is <see langword="null"/>.</exception>
         public OutputFileNamer(string directory, string sourcePath, Func<string, bool> fileExists)
+            : this(directory, sourcePath, outputName: null, fileExists)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="OutputFileNamer"/> class with a name chosen by the user.
+        /// </summary>
+        /// <param name="directory">The directory the files are created in.</param>
+        /// <param name="sourcePath">The path of the source file.</param>
+        /// <param name="outputName">
+        /// The name chosen by the user, without extension, which prefixes every output instead of the source name; or
+        /// <see langword="null"/> to use the source name.
+        /// </param>
+        /// <param name="fileExists">A predicate that reports whether a path is already taken on disk.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="directory"/>, <paramref name="sourcePath"/> or <paramref name="fileExists"/> is <see langword="null"/>.</exception>
+        public OutputFileNamer(string directory, string sourcePath, string? outputName, Func<string, bool> fileExists)
         {
             ArgumentNullException.ThrowIfNull(directory);
             ArgumentNullException.ThrowIfNull(sourcePath);
             ArgumentNullException.ThrowIfNull(fileExists);
 
             _directory = directory;
-            _baseName = Path.GetFileNameWithoutExtension(sourcePath);
+            _baseName = string.IsNullOrWhiteSpace(outputName) ? Path.GetFileNameWithoutExtension(sourcePath) : outputName;
             _fileExists = fileExists;
+        }
+
+        /// <summary>
+        /// Creates the path of a file whose name the user chose, without avoiding an existing file of that name.
+        /// </summary>
+        /// <param name="extension">The file extension, including the leading period.</param>
+        /// <returns>The full path made of the directory, the chosen name and <paramref name="extension"/>.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="extension"/> is <see langword="null"/>.</exception>
+        public string ForChosenName(string extension)
+        {
+            ArgumentNullException.ThrowIfNull(extension);
+
+            string path = Path.Combine(_directory, _baseName + extension);
+            _reserved.Add(path);
+            return path;
         }
 
         /// <summary>

@@ -80,6 +80,11 @@ namespace TrimC.Media
         public int? Channels { get; init; }
 
         /// <summary>
+        /// Gets the channel layout of an audio stream as reported by FFmpeg, for example <c>stereo</c> or <c>5.1(side)</c>.
+        /// </summary>
+        public string? ChannelLayout { get; init; }
+
+        /// <summary>
         /// Gets the sample rate of an audio stream in hertz.
         /// </summary>
         public int? SampleRate { get; init; }

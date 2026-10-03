@@ -175,6 +175,27 @@ namespace TrimC.Editing
         }
 
         /// <summary>
+        /// Removes or restores the sound of an existing segment.
+        /// </summary>
+        /// <param name="id">The identifier of the segment to change.</param>
+        /// <param name="isMuted"><see langword="true"/> to leave the audio out of the export; <see langword="false"/> to keep it.</param>
+        /// <returns>The updated segment.</returns>
+        /// <exception cref="KeyNotFoundException">No segment has the identifier <paramref name="id"/>.</exception>
+        public Segment SetMuted(Guid id, bool isMuted)
+        {
+            int index = IndexOf(id);
+            if (index < 0)
+            {
+                throw new KeyNotFoundException($"No segment with id '{id}' exists.");
+            }
+
+            Segment updated = _segments[index] with { IsMuted = isMuted };
+            _segments[index] = updated;
+            OnChanged();
+            return updated;
+        }
+
+        /// <summary>
         /// Splits the segment that contains <paramref name="position"/> into two adjacent segments.
         /// </summary>
         /// <param name="position">The split point. It must lie strictly inside a segment.</param>
@@ -197,6 +218,7 @@ namespace TrimC.Editing
                 Id = Guid.NewGuid(),
                 Range = new TimeRange(position, original.Range.End),
                 Label = original.Label,
+                IsMuted = original.IsMuted,
             };
 
             _segments[index] = first;
@@ -247,7 +269,7 @@ namespace TrimC.Editing
                 {
                     TimeRange right = new(range.End, segment.Range.End);
                     result.Add(hasLeft
-                        ? new Segment { Id = Guid.NewGuid(), Range = right, Label = segment.Label }
+                        ? new Segment { Id = Guid.NewGuid(), Range = right, Label = segment.Label, IsMuted = segment.IsMuted }
                         : segment with { Range = right });
                 }
             }

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 namespace TrimC.Desktop.Services
 {
     /// <summary>
-    /// Shows the platform file and folder pickers.
+    /// Shows the platform file pickers.
     /// </summary>
     /// <remarks>
     /// View models depend on this abstraction instead of on a window, which keeps them free of UI types and testable.
@@ -20,10 +20,13 @@ namespace TrimC.Desktop.Services
         Task<string?> PickMediaFileAsync();
 
         /// <summary>
-        /// Asks the user to choose a folder.
+        /// Asks the user where to save a file, with the platform's standard save dialog.
         /// </summary>
-        /// <param name="initialDirectory">The folder the dialog opens in, or <see langword="null"/>.</param>
-        /// <returns>The chosen folder path, or <see langword="null"/> if the dialog was dismissed.</returns>
-        Task<string?> PickFolderAsync(string? initialDirectory);
+        /// <param name="request">What the dialog suggests and offers.</param>
+        /// <returns>The chosen path, or <see langword="null"/> if the dialog was dismissed.</returns>
+        /// <remarks>
+        /// The dialog itself asks before an existing file is replaced, so a returned path that exists has been confirmed.
+        /// </remarks>
+        Task<string?> PickSaveFileAsync(SaveFileRequest request);
     }
 }

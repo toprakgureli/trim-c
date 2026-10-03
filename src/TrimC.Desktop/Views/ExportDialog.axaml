@@ -47,13 +47,6 @@
     <TextBlock Classes="label" Text="{x:Static res:Strings.ContainerLabel}" />
     <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding ContainerOptions}" SelectedItem="{Binding SelectedContainer}" />
 
-    <TextBlock Classes="label" Text="{x:Static res:Strings.OutputFolderLabel}" />
-    <TextBlock Text="{Binding OutputDirectoryText}" TextWrapping="Wrap" />
-    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
-      <Button Content="{x:Static res:Strings.ChangeFolderButton}" Command="{Binding ChooseFolderCommand}" />
-      <Button Content="{x:Static res:Strings.UseSourceFolderButton}" Command="{Binding UseSourceFolderCommand}" IsVisible="{Binding HasCustomOutputDirectory}" />
-    </StackPanel>
-
     <CheckBox Margin="0,14,0,0" Content="{x:Static res:Strings.OpenFolderWhenDone}" IsChecked="{Binding OpenFolderWhenDone}" />
 
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,22,0,0">

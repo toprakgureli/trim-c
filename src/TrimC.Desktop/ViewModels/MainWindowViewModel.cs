@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -47,6 +48,10 @@ namespace TrimC.Desktop.ViewModels
     /// Pressing play there starts again from the first kept frame. The limits follow every edit as it happens. With
     /// the advanced panel open the whole file is reachable again, because the manual tools mark frames outside the
     /// current segments.
+    /// </para>
+    /// <para>
+    /// A segment can be muted, which leaves its sound out of the export. Preview follows the same rule: the player is
+    /// silenced while the playhead is inside a muted segment, so what plays is what will be exported.
     /// </para>
     /// <para>
     /// The player reports state on its own thread. Updates are marshalled to the UI thread through the injected
@@ -136,8 +141,8 @@ namespace TrimC.Desktop.ViewModels
 
         /// <summary>Gets the loaded media, or <see langword="null"/> when no file is open.</summary>
         [ObservableProperty]
-        [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-        [NotifyPropertyChangedFor(nameof(Title), nameof(HasMedia))]
+        [NotifyCanExecuteChangedFor(nameof(ExportCommand), nameof(ToggleSoundCommand))]
+        [NotifyPropertyChangedFor(nameof(Title), nameof(HasMedia), nameof(HasAudio))]
         public partial MediaInfo? Media { get; private set; }
 
         /// <summary>Gets the keyframe index of the primary video stream, or <see langword="null"/> while it is being read.</summary>
@@ -167,8 +172,8 @@ namespace TrimC.Desktop.ViewModels
 
         /// <summary>Gets or sets the segment selected in the list and on the timeline.</summary>
         [ObservableProperty]
-        [NotifyPropertyChangedFor(nameof(SelectedSegmentId))]
-        [NotifyCanExecuteChangedFor(nameof(RemoveSelectedCommand), nameof(SetSelectedStartCommand), nameof(SetSelectedEndCommand))]
+        [NotifyPropertyChangedFor(nameof(SelectedSegmentId), nameof(IsSelectedMuted))]
+        [NotifyCanExecuteChangedFor(nameof(RemoveSelectedCommand), nameof(SetSelectedStartCommand), nameof(SetSelectedEndCommand), nameof(ToggleSoundCommand))]
         public partial SegmentViewModel? SelectedSegment { get; set; }
 
         /// <summary>Gets a one-line technical summary of the loaded media.</summary>
@@ -214,6 +219,12 @@ namespace TrimC.Desktop.ViewModels
 
         /// <summary>Gets a value indicating whether a file is loaded.</summary>
         public bool HasMedia => Media is not null;
+
+        /// <summary>Gets a value indicating whether the loaded file has sound that can be removed.</summary>
+        public bool HasAudio => Media?.Streams.Any(stream => stream.Kind == StreamKind.Audio) == true;
+
+        /// <summary>Gets a value indicating whether the selected segment is exported without sound.</summary>
+        public bool IsSelectedMuted => SelectedSegment?.Segment.IsMuted == true;
 
         /// <summary>Gets the identifier of the selected segment for the timeline control.</summary>
         public Guid? SelectedSegmentId => SelectedSegment?.Segment.Id;
@@ -485,6 +496,25 @@ namespace TrimC.Desktop.ViewModels
             }
         }
 
+        /// <summary>Removes the sound of the selected segment, or brings it back.</summary>
+        [RelayCommand(CanExecute = nameof(CanToggleSound))]
+        private void ToggleSound()
+        {
+            if (SelectedSegment?.Segment is not Segment segment)
+            {
+                return;
+            }
+
+            bool mute = !segment.IsMuted;
+            if (TryEdit(list => list.SetMuted(segment.Id, mute)))
+            {
+                string template = mute ? Strings.StatusSoundRemoved : Strings.StatusSoundRestored;
+                SetStatus(Strings.Format(template, Timecode.Format(segment.Range.Start), Timecode.Format(segment.Range.End)));
+            }
+        }
+
+        private bool CanToggleSound() => SelectedSegment is not null && HasAudio;
+
         /// <summary>Undoes the most recent edit.</summary>
         [RelayCommand(CanExecute = nameof(CanUndo))]
         private void Undo()
@@ -672,8 +702,7 @@ namespace TrimC.Desktop.ViewModels
             }
 
             IReadOnlyList<Segment> segments = _cutList.Segments;
-            string sourceDirectory = Path.GetDirectoryName(Media.FilePath) ?? Environment.CurrentDirectory;
-            ExportDialogViewModel dialog = new(_settings.Current, segments.Count, _cutList.TotalDuration, sourceDirectory, _dialogs);
+            ExportDialogViewModel dialog = new(_settings.Current, segments.Count, _cutList.TotalDuration);
             if (!await _exportDialog.ShowAsync(dialog).ConfigureAwait(true))
             {
                 return;
@@ -688,10 +717,30 @@ namespace TrimC.Desktop.ViewModels
                 return;
             }
 
+            // The standard save dialog decides where the files go, every time. Its file type, or an extension typed by
+            // hand, chooses the container; a name with any other extension keeps the container chosen in the dialog.
+            ContainerFormat container = ContainerFormats.Resolve(settings.Container, Media.FilePath);
+            string? path = await _dialogs.PickSaveFileAsync(CreateSaveRequest(Media, segments, settings, container)).ConfigureAwait(true);
+            if (path is null)
+            {
+                return;
+            }
+
+            string outputDirectory = Path.GetDirectoryName(path) ?? Environment.CurrentDirectory;
+            string outputName = Path.GetFileName(path);
+            if (ContainerFormats.TryGetFromExtension(outputName, out ContainerFormat chosen))
+            {
+                container = chosen;
+                outputName = Path.GetFileNameWithoutExtension(outputName);
+            }
+
+            _settings.Save(_settings.Current with { LastExportDirectory = outputDirectory });
+
             ExportOptions options = new()
             {
-                OutputDirectory = dialog.EffectiveOutputDirectory,
-                Container = settings.Container,
+                OutputDirectory = outputDirectory,
+                OutputName = outputName,
+                Container = container,
                 Mode = settings.Mode,
                 CutMode = settings.CutMode,
                 SnapMode = settings.SnapMode,
@@ -763,6 +812,8 @@ namespace TrimC.Desktop.ViewModels
                 SeekTo(value.Segment.Range.Start, exact: true);
             }
         }
+
+        partial void OnPositionChanged(TimeSpan value) => UpdatePreviewSound();
 
         partial void OnIsAdvancedPanelOpenChanged(bool value)
         {
@@ -879,7 +930,7 @@ namespace TrimC.Desktop.ViewModels
             {
                 for (int i = 0; i < segments.Count; i++)
                 {
-                    if (Segments[i].Segment.Range != segments[i].Range)
+                    if (Segments[i].Segment.Range != segments[i].Range || Segments[i].Segment.IsMuted != segments[i].IsMuted)
                     {
                         Segments[i] = new SegmentViewModel(segments[i], i + 1, RenameSegment);
                     }
@@ -898,7 +949,57 @@ namespace TrimC.Desktop.ViewModels
             {
                 KeepPlayheadInRange();
             }
+
+            UpdatePreviewSound();
         }
+
+        private void UpdatePreviewSound()
+        {
+            bool muted = _cutList?.FindAt(Position)?.IsMuted == true;
+            if (_player.IsMuted != muted)
+            {
+                _player.IsMuted = muted;
+            }
+        }
+
+        private static SaveFileRequest CreateSaveRequest(MediaInfo media, IReadOnlyList<Segment> segments, AppSettings settings, ContainerFormat container)
+        {
+            string sourceDirectory = Path.GetDirectoryName(media.FilePath) ?? Environment.CurrentDirectory;
+            string? lastDirectory = settings.LastExportDirectory;
+            string initialDirectory = lastDirectory is not null && Directory.Exists(lastDirectory) ? lastDirectory : sourceDirectory;
+            string extension = ContainerFormats.GetExtension(container);
+
+            // A single file is suggested under the name the export would otherwise get. Several files share the chosen
+            // name as a prefix, so the suggestion is the name of the source.
+            bool isSingleFile = segments.Count == 1 || settings.Mode == ExportMode.Merge;
+            OutputFileNamer namer = new(initialDirectory, media.FilePath, File.Exists);
+            string suggestedPath = !isSingleFile ? Path.GetFileNameWithoutExtension(media.FilePath) + extension
+                : segments.Count == 1 ? namer.ForSegment(segments[0], segments[0].Range, extension)
+                : namer.ForMerged(extension);
+
+            List<SaveFileType> types = [];
+            foreach (ContainerFormat format in (ContainerFormat[])[container, ContainerFormat.Mp4, ContainerFormat.Matroska, ContainerFormat.QuickTime])
+            {
+                SaveFileType type = new(DescribeFileType(format), ContainerFormats.GetExtension(format));
+                if (!types.Contains(type))
+                {
+                    types.Add(type);
+                }
+            }
+
+            return new SaveFileRequest(
+                isSingleFile ? Strings.SaveDialogTitle : Strings.SaveDialogSeveralTitle,
+                Path.GetFileName(suggestedPath),
+                initialDirectory,
+                types);
+        }
+
+        private static string DescribeFileType(ContainerFormat format) => format switch
+        {
+            ContainerFormat.Mp4 => Strings.FileTypeMp4,
+            ContainerFormat.QuickTime => Strings.FileTypeQuickTime,
+            _ => Strings.FileTypeMatroska,
+        };
 
         private bool HasSameIdentities(IReadOnlyList<Segment> segments)
         {

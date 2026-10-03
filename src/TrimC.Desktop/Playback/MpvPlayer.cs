@@ -38,6 +38,7 @@ namespace TrimC.Desktop.Playback
         private long _positionTicks;
         private long _stopPositionTicks = NoStopPosition;
         private volatile bool _isPaused = true;
+        private bool _isMuted;
         private volatile bool _isFileLoaded;
         private volatile bool _isDisposed;
 
@@ -85,6 +86,20 @@ namespace TrimC.Desktop.Playback
 
         /// <inheritdoc/>
         public bool IsPaused => _isPaused;
+
+        /// <inheritdoc/>
+        public bool IsMuted
+        {
+            get => _isMuted;
+            set
+            {
+                _isMuted = value;
+                if (IsReady)
+                {
+                    Check(MpvNative.SetPropertyString(_handle, "mute", value ? "yes" : "no"), "mute");
+                }
+            }
+        }
 
         /// <inheritdoc/>
         /// <exception cref="InvalidOperationException">The player is already attached.</exception>
@@ -137,6 +152,7 @@ namespace TrimC.Desktop.Playback
                 SetOption(handle, "keep-open", "always");
                 SetOption(handle, "pause", "yes");
                 SetOption(handle, "hwdec", "auto-safe");
+                SetOption(handle, "mute", _isMuted ? "yes" : "no");
 
                 // Precise seeks decode from the preceding keyframe to the requested frame instead of snapping, and
                 // dropping frames during that decode would make the displayed frame differ from the reported position.

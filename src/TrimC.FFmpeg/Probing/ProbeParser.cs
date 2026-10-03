@@ -193,6 +193,7 @@ namespace TrimC.FFmpeg.Probing
                 Height = stream.Height,
                 FrameRate = frameRate,
                 Channels = stream.Channels,
+                ChannelLayout = string.IsNullOrEmpty(stream.ChannelLayout) ? null : stream.ChannelLayout,
                 SampleRate = (int?)ParseInt64(stream.SampleRate),
                 BitRate = ParseInt64(stream.BitRate),
             };

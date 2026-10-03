@@ -24,7 +24,7 @@ namespace TrimC.Desktop.Settings.Tests
                 Container = ContainerFormat.Matroska,
                 Mode = ExportMode.Merge,
                 CutMode = CutMode.Keyframe,
-                OutputDirectory = @"D:\Exports",
+                LastExportDirectory = @"D:\Exports",
                 OpenFolderWhenDone = false,
                 IsAdvancedPanelOpen = true,
                 ShowInOpenWith = false,

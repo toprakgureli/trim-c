@@ -17,6 +17,16 @@ namespace TrimC.Export
         public required string OutputDirectory { get; init; }
 
         /// <summary>
+        /// Gets the file name the user chose, without its extension, or <see langword="null"/> to name files after the source.
+        /// </summary>
+        /// <remarks>
+        /// When the export produces one file, it gets exactly this name, and an existing file of that name is replaced:
+        /// the user has already confirmed that in the save dialog. When it produces several files, the name becomes
+        /// their common prefix and each file is still given a name that is not in use.
+        /// </remarks>
+        public string? OutputName { get; init; }
+
+        /// <summary>
         /// Gets the output container. Defaults to <see cref="ContainerFormat.SameAsSource"/>.
         /// </summary>
         public ContainerFormat Container { get; init; } = ContainerFormat.SameAsSource;

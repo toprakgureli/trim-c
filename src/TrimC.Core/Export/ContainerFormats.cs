@@ -44,6 +44,29 @@ namespace TrimC.Export
         }
 
         /// <summary>
+        /// Finds the container that a file name extension stands for.
+        /// </summary>
+        /// <param name="path">A file name or path.</param>
+        /// <param name="format">When this method returns <see langword="true"/>, the container of the extension.</param>
+        /// <returns><see langword="true"/> if the extension belongs to a container that can be written; otherwise, <see langword="false"/>.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="path"/> is <see langword="null"/>.</exception>
+        public static bool TryGetFromExtension(string path, out ContainerFormat format)
+        {
+            ArgumentNullException.ThrowIfNull(path);
+
+            string extension = Path.GetExtension(path);
+            format = extension.ToUpperInvariant() switch
+            {
+                ".MP4" or ".M4V" => ContainerFormat.Mp4,
+                ".MKV" => ContainerFormat.Matroska,
+                ".MOV" => ContainerFormat.QuickTime,
+                _ => ContainerFormat.SameAsSource,
+            };
+
+            return format != ContainerFormat.SameAsSource;
+        }
+
+        /// <summary>
         /// Gets the file extension, including the leading period, for a concrete container.
         /// </summary>
         /// <param name="format">A concrete container format.</param>

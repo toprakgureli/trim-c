@@ -28,5 +28,14 @@ namespace TrimC.Editing
         /// Gets an optional user-provided label that is used when naming exported files.
         /// </summary>
         public string? Label { get; init; }
+
+        /// <summary>
+        /// Gets a value indicating whether the audio of the segment is left out of the export.
+        /// </summary>
+        /// <remarks>
+        /// A muted segment exported on its own has no audio streams. When it is merged with segments that keep their
+        /// sound, it carries silence instead, so that the joined file still has one continuous audio track.
+        /// </remarks>
+        public bool IsMuted { get; init; }
     }
 }

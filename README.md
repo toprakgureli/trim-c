@@ -21,8 +21,10 @@ trim-c does the opposite. The packets the recorder wrote are copied into the new
 
 - Opens a recording with the whole video selected. Dragging the two yellow handles on the timeline trims it, the way the Movies & TV app does, and the preview follows the handle frame by frame.
 - Keeps manual tools for finer work in the **Advanced** panel: marking parts to keep or cut out with the keyboard, splitting, inverting and a segment list.
+- Zooms the timeline down to single frames with Ctrl+wheel, and moves around a zoomed view with a scroll bar.
+- Removes the sound of a clip from its right-click menu, both in the preview and in the export.
 - Undoes and redoes every edit with Ctrl+Z and Ctrl+Y (or Ctrl+Shift+Z).
-- Exports each part as its own file, or joins them into one file, in MP4, MKV or MOV, and opens the output folder when it is done.
+- Exports each part as its own file, or joins them into one file, in MP4, MKV or MOV, wherever you choose in the standard Windows save dialog, and opens that folder when it is done.
 - Appears in the Windows "Open with" menu for common video formats.
 - Has an English and a Turkish interface.
 - Offers two cut precisions:
@@ -92,11 +94,13 @@ The code builds on Linux and macOS as well, but the video preview embeds mpv int
 2. Drag the yellow handles on the timeline to the first and the last frame you want to keep. The preview shows the frame under the handle and the summary above the timeline shows the kept range. Arrow keys step one frame at a time if you want to check a frame before dropping a handle there.
 
    Preview stays inside the part you keep, so what you watch is what you export. Play starts from the first kept frame, playback stops on the last one, and clicking outside the selection lands on its nearest edge. With several segments, playback skips the parts that are cut out. The limits follow the handles, undo and redo as you edit. Opening **Advanced** lifts them, because the manual tools need the whole file.
-3. Press **Export…** or Ctrl+E. The export window asks for the cut precision, the container and the output folder, and remembers your choices for next time.
+3. Press **Export…** or Ctrl+E. The export window asks for the cut precision and the container, and remembers your choices for next time.
 
-![The export window](docs/images/export-dialog.png)
+   ![The export window](docs/images/export-dialog.png)
 
-When the export finishes, the output folder opens with the new file selected. Files are written next to the source unless you choose another folder. Names contain the exported range, for example `recording-00.00.18.300-00.01.04.900.mkv`, or the label you typed for the segment. Existing files are never overwritten.
+4. The standard Windows save dialog then asks where to save and under what name. It opens in the folder of your last export, or next to the source the first time, and suggests a name that contains the exported range, for example `recording-00.00.18.016-00.01.05.016.mkv`. Choosing another file type, or typing `.mp4`, `.mkv` or `.mov` at the end of the name, changes the container.
+
+When the export finishes, the folder opens with the new file selected. If you pick an existing file and confirm that it may be replaced, the new file is written next to it first and replaces it only once the export has succeeded. When every segment becomes a file of its own, the name you choose is their common prefix, each file adds its range or label, and no existing file is replaced.
 
 ### Advanced tools
 
@@ -106,7 +110,9 @@ When the export finishes, the output folder opens with the new file selected. Fi
 - To work the other way round, press **I** on the first frame to remove, move to the first frame to keep and press **X**. The frames in between are cut out and everything else is kept.
 - **S** splits the segment under the playhead, and each part gets its own handles.
 
-![The advanced panel with three segments](docs/images/advanced.png)
+Right-clicking a clip on the timeline opens its menu. **Remove sound** (or **M**) mutes the clip: it is drawn with a crossed-out speaker, the preview plays it silent, and the export leaves its audio out. A muted clip exported on its own has no audio track. Merged with clips that keep their sound, it carries silence in the codec of the source instead, so the joined file keeps one continuous audio track. **Restore sound** brings it back, and both are undone with Ctrl+Z like any other edit.
+
+![The advanced panel with two segments, the second one muted](docs/images/advanced.png)
 
 The **⋯** menu holds the language (system, English or Turkish, applied on the next start), the "Open with" entry and a shortcut to the log folder.
 
@@ -122,12 +128,15 @@ The **⋯** menu holds the language (system, English or Turkish, applied on the 
 | X | Cut out the frames between the start mark and the playhead |
 | Shift+I / Shift+O | Move the start / end of the selected segment to the playhead |
 | S | Split the segment under the playhead |
+| M | Remove or restore the sound of the selected segment |
 | Delete | Remove the selected segment |
+| Ctrl+= / Ctrl+- | Zoom the timeline in / out |
+| Ctrl+0 | Show the whole video on the timeline |
 | Ctrl+O | Open a file |
 | Ctrl+E | Export |
 | Esc | Cancel a running export |
 
-On the timeline, drag a yellow handle to trim, click or drag anywhere else to seek, scroll to pan and Ctrl+scroll to zoom. Orange ticks are keyframes, and the dimmed areas are left out of the export.
+On the timeline, drag a yellow handle to trim and click or drag anywhere else to seek. Ctrl+wheel zooms around the pointer, down to a quarter of a second across the whole width. The wheel, the scroll bar under the timeline and dragging with the middle mouse button move a zoomed view, and the **−**, **+** and **Fit** buttons next to the scroll bar zoom around the playhead. Orange ticks are keyframes, and the dimmed areas are left out of the export.
 
 ## Architecture
 
@@ -165,6 +174,7 @@ The code follows the [dotnet/runtime coding style](https://github.com/dotnet/run
 - Exact frame mode supports H.264 and HEVC video. Other codecs can be cut in keyframe mode.
 - In exact frame mode, transport stream parts carry only video and audio, so subtitle and data streams are left out.
 - In keyframe mode, the end of a cut can include one or two extra frames when the video has B-frames, because those frames are needed to decode the last selected ones.
+- Merging muted and audible clips encodes the silence in the codec of the source. AAC, Opus, MP3, AC-3, E-AC-3, FLAC, Vorbis, ALAC and PCM audio are supported. With any other codec, export the clips as separate files.
 
 ## License
 

@@ -40,6 +40,7 @@ namespace TrimC.Desktop.ViewModels.Tests
         private readonly FakeExportDialog _exportDialog = new();
         private readonly FakeExecutor _executor = new();
         private readonly FakePlayer _player = new();
+        private readonly FakeDialogs _dialogs = new();
         private readonly SettingsStore _settings;
         private readonly MainWindowViewModel _viewModel;
 
@@ -50,7 +51,7 @@ namespace TrimC.Desktop.ViewModels.Tests
             _viewModel = new MainWindowViewModel(
                 _player,
                 new MediaToolchain(new FakeProbe(), _executor),
-                new FakeDialogs(),
+                _dialogs,
                 _exportDialog,
                 _shell,
                 _settings,
@@ -145,13 +146,93 @@ namespace TrimC.Desktop.ViewModels.Tests
             Drag(_viewModel.TimelineSegments[0].Id, SegmentEdge.End, 60);
             _exportDialog.Confirm = true;
             _exportDialog.Configure = dialog => dialog.SelectedContainer = dialog.ContainerOptions[1];
+            _dialogs.SavePath = Path.Combine(_directory, "holiday.mp4");
 
             await _viewModel.ExportCommand.ExecuteAsync(null);
 
             ExportPlan plan = Assert.IsType<ExportPlan>(_executor.LastPlan);
-            Assert.EndsWith(".mp4", plan.OutputFiles[0], StringComparison.Ordinal);
+            Assert.Equal([Path.Combine(_directory, "holiday.mp4")], plan.OutputFiles);
             Assert.Equal(ContainerFormat.Mp4, _settings.Current.Container);
+            Assert.Equal(_directory, _settings.Current.LastExportDirectory);
             Assert.Equal(plan.OutputFiles[0], _viewModel.LastExportedFile);
+        }
+
+        [Fact]
+        public async Task Export_SaveDialogDismissed_RunsNothing()
+        {
+            await OpenAsync();
+            _exportDialog.Confirm = true;
+            _dialogs.SavePath = null;
+
+            await _viewModel.ExportCommand.ExecuteAsync(null);
+
+            Assert.Null(_executor.LastPlan);
+            Assert.NotNull(_dialogs.LastRequest);
+        }
+
+        [Fact]
+        public async Task Export_SuggestsANameNextToTheSourceAndOffersTheContainerFirst()
+        {
+            await OpenAsync();
+            Drag(_viewModel.TimelineSegments[0].Id, SegmentEdge.Start, 10);
+            _exportDialog.Confirm = true;
+            _exportDialog.Configure = dialog => dialog.SelectedContainer = dialog.ContainerOptions[3];
+            _dialogs.SavePath = null;
+
+            await _viewModel.ExportCommand.ExecuteAsync(null);
+
+            SaveFileRequest request = Assert.IsType<SaveFileRequest>(_dialogs.LastRequest);
+            Assert.Equal("recording-00.00.10.000-00.01.30.000.mov", request.SuggestedFileName);
+            Assert.Equal(Path.GetDirectoryName(s_media.FilePath), request.InitialDirectory);
+            Assert.Equal(".mov", request.FileTypes[0].Extension);
+            Assert.Equal(3, request.FileTypes.Count);
+        }
+
+        [Fact]
+        public async Task Export_ExtensionTypedInTheSaveDialog_ChoosesTheContainer()
+        {
+            await OpenAsync();
+            _exportDialog.Confirm = true;
+            _dialogs.SavePath = Path.Combine(_directory, "holiday.mkv");
+
+            await _viewModel.ExportCommand.ExecuteAsync(null);
+
+            ExportPlan plan = Assert.IsType<ExportPlan>(_executor.LastPlan);
+            Assert.Equal(ContainerFormat.Matroska, plan.Steps[^1].Container);
+            Assert.EndsWith("holiday.mkv", plan.OutputFiles[0], StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public async Task ToggleSound_MutesTheSelectedClipAndThePreviewAndCanBeUndone()
+        {
+            await OpenAsync();
+
+            _viewModel.ToggleSoundCommand.Execute(null);
+
+            Assert.True(_viewModel.TimelineSegments[0].IsMuted);
+            Assert.True(_viewModel.IsSelectedMuted);
+            Assert.True(_player.IsMuted);
+
+            _viewModel.UndoCommand.Execute(null);
+
+            Assert.False(_viewModel.TimelineSegments[0].IsMuted);
+            Assert.False(_player.IsMuted);
+        }
+
+        [Fact]
+        public async Task PreviewSound_FollowsThePlayheadAcrossMutedAndAudibleClips()
+        {
+            await OpenAsync();
+            _viewModel.IsAdvancedPanelOpen = true;
+            SeekTo(30);
+            _viewModel.SplitCommand.Execute(null);
+            _viewModel.ToggleSoundCommand.Execute(null);
+
+            SeekTo(10);
+            Assert.True(_player.IsMuted);
+
+            SeekTo(40);
+            Assert.False(_player.IsMuted);
         }
 
         [Fact]
@@ -391,9 +472,17 @@ namespace TrimC.Desktop.ViewModels.Tests
 
         private sealed class FakeDialogs : IFileDialogService
         {
+            public string? SavePath { get; set; }
+
+            public SaveFileRequest? LastRequest { get; private set; }
+
             public Task<string?> PickMediaFileAsync() => Task.FromResult<string?>(null);
 
-            public Task<string?> PickFolderAsync(string? initialDirectory) => Task.FromResult<string?>(null);
+            public Task<string?> PickSaveFileAsync(SaveFileRequest request)
+            {
+                LastRequest = request;
+                return Task.FromResult(SavePath);
+            }
         }
 
         /// <summary>
@@ -425,6 +514,8 @@ namespace TrimC.Desktop.ViewModels.Tests
             public TimeSpan Position => TimeSpan.Zero;
 
             public bool IsPaused => true;
+
+            public bool IsMuted { get; set; }
 
             public void ReachStopPosition() => StopPositionReached?.Invoke(this, EventArgs.Empty);
 

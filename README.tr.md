@@ -21,8 +21,10 @@ trim-c bunun tersini yapıyor. Kayıt programının yazdığı paketler yeni dos
 
 - Kaydı videonun tamamı seçili olarak açar. Filmler ve TV uygulamasındaki gibi zaman çizelgesindeki iki sarı tutamacı sürükleyerek kırparsın. Önizleme, tutamacı kare kare takip eder.
 - Daha ince işler için elle düzenleme araçlarını **Gelişmiş** panelinde tutar. Saklanacak ya da çıkarılacak bölümleri klavyeyle işaretleyebilir, segmentleri bölebilir, tersine çevirebilir ve listede görebilirsin.
+- Zaman çizelgesini Ctrl+tekerlekle tek tek karelerin görüneceği kadar yakınlaştırır. Yakınlaştırılmış görünümde kaydırma çubuğuyla gezinirsin.
+- Bir klibin sesini sağ tık menüsünden kaldırır. Ses hem önizlemede hem dışa aktarmada kapanır.
 - Her düzenlemeyi Ctrl+Z ile geri alır, Ctrl+Y (ya da Ctrl+Shift+Z) ile yineler.
-- Her bölümü ayrı bir dosya olarak dışa aktarır ya da hepsini tek dosyada birleştirir. MP4, MKV ve MOV desteklenir. İş bitince çıktı klasörünü açar.
+- Her bölümü ayrı bir dosya olarak dışa aktarır ya da hepsini tek dosyada birleştirir. MP4, MKV ve MOV desteklenir. Dosyayı Windows'un standart kaydetme penceresinde seçtiğin yere yazar, iş bitince de o klasörü açar.
 - Yaygın video biçimlerinde Windows'un "Birlikte aç" menüsünde görünür.
 - Türkçe ve İngilizce arayüzle gelir.
 - İki kesim hassasiyeti sunar:
@@ -92,11 +94,13 @@ Kod Linux ve macOS'te de derleniyor ancak video önizlemesi mpv'yi yerel bir pen
 2. Zaman çizelgesindeki sarı tutamaçları saklamak istediğin ilk ve son kareye sürükle. Önizleme tutamacın altındaki kareyi, zaman çizelgesinin üstündeki özet de saklanacak aralığı gösterir. Tutamacı bırakmadan önce bir kareyi kontrol etmek istersen ok tuşlarıyla kare kare ilerleyebilirsin.
 
    Önizleme saklanacak bölümün içinde kalır, yani izlediğin şey dışa aktaracağın şeyin ta kendisidir. Oynatma ilk saklanan kareden başlar, son saklanan karede durur. Seçimin dışına tıklarsan oynatma imleci seçimin en yakın kenarına gider. Birden fazla segment varsa aradaki çıkarılmış bölümler atlanır. Sınırlar tutamaçları sürükledikçe, geri aldıkça ya da yineledikçe anında güncellenir. **Gelişmiş** paneli açıkken elle düzenleme araçları dosyanın tamamına ihtiyaç duyduğu için bu sınırlar kalkar.
-3. **Dışa aktar…** düğmesine ya da Ctrl+E'ye bas. Açılan pencerede kesim hassasiyetini, kapsayıcıyı ve çıktı klasörünü seçersin. Seçimlerin bir sonraki sefer için hatırlanır.
+3. **Dışa aktar…** düğmesine ya da Ctrl+E'ye bas. Açılan pencerede kesim hassasiyetini ve kapsayıcıyı seçersin. Seçimlerin bir sonraki sefer için hatırlanır.
 
-![Dışa aktarma penceresi](docs/images/export-dialog.tr.png)
+   ![Dışa aktarma penceresi](docs/images/export-dialog.tr.png)
 
-Dışa aktarma bitince çıktı klasörü yeni dosya seçili olarak açılır. Başka bir klasör seçmediğin sürece dosyalar kaynağın yanına yazılır. Dosya adlarında dışa aktarılan aralık (örneğin `recording-00.00.18.300-00.01.04.900.mkv`) ya da segmente yazdığın etiket yer alır. Var olan dosyaların üzerine hiçbir zaman yazılmaz.
+4. Ardından Windows'un standart kaydetme penceresi dosyanın nereye ve hangi adla kaydedileceğini sorar. Pencere son dışa aktardığın klasörde açılır, ilk seferde kaynağın yanında açılır. Önerdiği adda dışa aktarılan aralık yer alır, örneğin `recording-00.00.18.016-00.01.05.016.mkv`. Başka bir dosya türü seçersen ya da adın sonuna `.mp4`, `.mkv` veya `.mov` yazarsan kapsayıcı da ona göre değişir.
+
+Dışa aktarma bitince klasör yeni dosya seçili olarak açılır. Var olan bir dosyayı seçip üzerine yazılmasını onaylarsan yeni dosya önce onun yanına yazılır ve ancak dışa aktarma başarıyla bittiğinde eskisinin yerini alır. Her segment ayrı bir dosya olacaksa seçtiğin ad ortak ön ek olur, her dosyanın adına kendi aralığı ya da etiketi eklenir ve var olan hiçbir dosyanın üzerine yazılmaz.
 
 ### Gelişmiş araçlar
 
@@ -106,7 +110,9 @@ Dışa aktarma bitince çıktı klasörü yeni dosya seçili olarak açılır. B
 - Tersinden çalışmak istersen çıkarılacak ilk karede **I** tuşuna bas, saklanacak ilk kareye git ve **X** tuşuna bas. Aradaki kareler çıkarılır, geri kalan her şey saklanır.
 - **S** tuşu imlecin altındaki segmenti ikiye böler. Her parçanın kendi tutamaçları olur.
 
-![Üç segmentli gelişmiş panel](docs/images/advanced.tr.png)
+Zaman çizelgesinde bir klibe sağ tıklarsan klibin menüsü açılır. **Sesi kaldır** (ya da **M** tuşu) klibi sessize alır. Klip üstü çizili bir hoparlörle işaretlenir, önizlemede sessiz oynar ve dışa aktarmada sesi alınmaz. Tek başına aktarılan sessiz bir klipte ses kanalı olmaz. Sesi açık kliplerle birleştirildiğinde ise kaynağın kodeğinde sessizlik taşır, böylece birleşik dosyada tek ve kesintisiz bir ses kanalı kalır. **Sesi geri getir** sesi geri açar. İkisi de diğer düzenlemeler gibi Ctrl+Z ile geri alınır.
+
+![İki segmentli gelişmiş panel, ikinci segment sessiz](docs/images/advanced.tr.png)
 
 **⋯** menüsünde dil seçimi (sistem, English ya da Türkçe), "Birlikte aç" kaydı ve günlük klasörünün kısayolu bulunur. Dil değişikliği bir sonraki açılışta uygulanır.
 
@@ -122,12 +128,15 @@ Dışa aktarma bitince çıktı klasörü yeni dosya seçili olarak açılır. B
 | X | Başlangıç işaretiyle oynatma imleci arasındaki kareleri çıkar |
 | Shift+I / Shift+O | Seçili segmentin başını / sonunu oynatma imlecine taşı |
 | S | İmlecin altındaki segmenti ikiye böl |
+| M | Seçili segmentin sesini kaldır ya da geri getir |
 | Delete | Seçili segmenti sil |
+| Ctrl+= / Ctrl+- | Zaman çizelgesini yakınlaştır / uzaklaştır |
+| Ctrl+0 | Videonun tamamını zaman çizelgesinde göster |
 | Ctrl+O | Dosya aç |
 | Ctrl+E | Dışa aktar |
 | Esc | Süren dışa aktarmayı iptal et |
 
-Zaman çizelgesinde kırpmak için sarı tutamacı sürükle, konuma gitmek için başka bir yere tıkla ya da sürükle. Tekerlekle kaydırır, Ctrl+tekerlekle yakınlaştırırsın. Turuncu çizgiler keyframe'leri gösterir, karartılmış alanlar dışa aktarmaya girmez.
+Zaman çizelgesinde kırpmak için sarı tutamacı sürükle, konuma gitmek için başka bir yere tıkla ya da sürükle. Ctrl+tekerlek imlecin olduğu yeri yakınlaştırır. En yakın görünümde çizelgenin tamamı çeyrek saniyeyi gösterir. Yakınlaştırılmış görünümü tekerlekle, çizelgenin altındaki kaydırma çubuğuyla ya da farenin orta tuşuyla sürükleyerek kaydırırsın. Kaydırma çubuğunun yanındaki **−**, **+** ve **Sığdır** düğmeleri oynatma imlecinin çevresini yakınlaştırır. Turuncu çizgiler keyframe'leri gösterir, karartılmış alanlar dışa aktarmaya girmez.
 
 ## Mimari
 
@@ -165,6 +174,7 @@ Kod, [dotnet/runtime kod stiline](https://github.com/dotnet/runtime/blob/main/do
 - Tam kare modu H.264 ve HEVC videoyu destekler. Diğer kodekler keyframe modunda kesilebilir.
 - Tam kare modunda transport stream parçaları yalnızca video ve ses taşır, bu yüzden altyazı ve veri akışları dışarıda kalır.
 - Keyframe modunda, video B-frame içeriyorsa kesimin sonuna bir iki kare fazladan girebilir. Bu kareler, seçilen son karelerin çözülebilmesi için gereklidir.
+- Sessiz ve sesli klipler birleştirilirken sessizlik kaynağın kodeğiyle kodlanır. AAC, Opus, MP3, AC-3, E-AC-3, FLAC, Vorbis, ALAC ve PCM ses desteklenir. Başka bir kodekte klipleri ayrı dosyalar olarak aktar.
 
 ## Lisans
 

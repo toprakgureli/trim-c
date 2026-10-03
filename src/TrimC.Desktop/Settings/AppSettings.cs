@@ -42,9 +42,10 @@ namespace TrimC.Desktop.Settings
         public KeyframeSnapMode SnapMode { get; init; } = KeyframeSnapMode.Previous;
 
         /// <summary>
-        /// Gets the folder that receives exports, or <see langword="null"/> to write next to the source file.
+        /// Gets the folder the last export was saved in, where the next save dialog opens; or <see langword="null"/> to
+        /// open it next to the source file.
         /// </summary>
-        public string? OutputDirectory { get; init; }
+        public string? LastExportDirectory { get; init; }
 
         /// <summary>
         /// Gets a value indicating whether the output folder opens after a successful export.

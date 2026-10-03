@@ -97,6 +97,24 @@ namespace TrimC.Editing.Tests
             Assert.Equal([Range(10, 18), Range(18, 30)], RangesOf(list));
         }
 
+        [Fact]
+        public void SetMuted_ChangesOnlyTheSoundAndSurvivesSplitting()
+        {
+            CutList list = new(Seconds(100));
+            Segment original = list.Add(Range(10, 30), "clip");
+            int changes = 0;
+            list.Changed += (_, _) => changes++;
+
+            Segment muted = list.SetMuted(original.Id, isMuted: true);
+            (Segment First, Segment Second)? halves = list.Split(Seconds(20));
+
+            Assert.Equal(original with { IsMuted = true }, muted);
+            Assert.True(halves!.Value.First.IsMuted);
+            Assert.True(halves.Value.Second.IsMuted);
+            Assert.Equal(2, changes);
+            Assert.Throws<KeyNotFoundException>(() => list.SetMuted(Guid.NewGuid(), isMuted: true));
+        }
+
         [Theory]
         [InlineData(10)]
         [InlineData(30)]

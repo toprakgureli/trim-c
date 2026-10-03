@@ -59,23 +59,34 @@ namespace TrimC.Desktop.Services
         }
 
         /// <inheritdoc/>
-        public async Task<string?> PickFolderAsync(string? initialDirectory)
+        public async Task<string?> PickSaveFileAsync(SaveFileRequest request)
         {
+            ArgumentNullException.ThrowIfNull(request);
+
             IStorageProvider? storage = _topLevelAccessor()?.StorageProvider;
             if (storage is null)
             {
                 return null;
             }
 
-            IStorageFolder? start = initialDirectory is null ? null : await storage.TryGetFolderFromPathAsync(initialDirectory).ConfigureAwait(true);
-            IReadOnlyList<IStorageFolder> folders = await storage.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            List<FilePickerFileType> types = [];
+            foreach (SaveFileType type in request.FileTypes)
             {
-                Title = Strings.FolderDialogTitle,
-                AllowMultiple = false,
+                types.Add(new FilePickerFileType(type.Name) { Patterns = ["*" + type.Extension] });
+            }
+
+            IStorageFolder? start = request.InitialDirectory is null ? null : await storage.TryGetFolderFromPathAsync(request.InitialDirectory).ConfigureAwait(true);
+            IStorageFile? file = await storage.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = request.Title,
+                SuggestedFileName = request.SuggestedFileName,
                 SuggestedStartLocation = start,
+                DefaultExtension = request.FileTypes.Count > 0 ? request.FileTypes[0].Extension.TrimStart('.') : null,
+                FileTypeChoices = types,
+                ShowOverwritePrompt = true,
             }).ConfigureAwait(true);
 
-            return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
+            return file?.TryGetLocalPath();
         }
     }
 }

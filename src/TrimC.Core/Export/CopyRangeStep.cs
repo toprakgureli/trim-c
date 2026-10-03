@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using TrimC.Editing;
+using TrimC.Media;
 
 namespace TrimC.Export
 {
@@ -62,6 +63,17 @@ namespace TrimC.Export
         /// Gets the absolute indexes of the source streams to copy.
         /// </summary>
         public required IReadOnlyList<int> StreamIndexes { get; init; }
+
+        /// <summary>
+        /// Gets the audio streams whose sound is replaced by silence, or an empty list to copy every stream.
+        /// </summary>
+        /// <remarks>
+        /// A muted segment that is merged with segments that keep their sound still needs an audio track, or the joined
+        /// file would lose sync. Its audio is replaced by silence that covers the same time, encoded with the codec,
+        /// sample rate and channel layout of the original so that every part of the join matches. Every audio stream in
+        /// <see cref="StreamIndexes"/> is listed here when a segment is muted, in the same order.
+        /// </remarks>
+        public IReadOnlyList<MediaStreamInfo> SilencedStreams { get; init; } = [];
 
         /// <summary>
         /// Gets a value indicating whether the index is placed at the start of the file.

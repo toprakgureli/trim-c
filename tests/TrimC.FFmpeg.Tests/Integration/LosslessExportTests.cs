@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TrimC.Editing;
@@ -124,6 +125,65 @@ namespace TrimC.FFmpeg.Integration.Tests
             Assert.All(plan.OutputFiles, path => Assert.False(File.Exists(path)));
         }
 
+        [Fact]
+        public async Task ExecuteAsync_MutedSegmentOnItsOwn_HasNoAudio()
+        {
+            (FFprobeMediaProbe probe, MediaInfo media) = await PrepareAsync();
+            KeyframeIndex keyframes = await probe.ReadKeyframesAsync(media, media.PrimaryVideoStream!.Index, TestContext.Current.CancellationToken);
+
+            ExportPlan plan = ExportPlanner.CreatePlan(media, keyframes, [Segment(2, 6, muted: true)], new ExportOptions { OutputDirectory = _directory });
+            await new FFmpegExportExecutor(_tools!).ExecuteAsync(plan, cancellationToken: TestContext.Current.CancellationToken);
+
+            MediaInfo output = await probe.ProbeAsync(plan.OutputFiles[0], TestContext.Current.CancellationToken);
+            Assert.DoesNotContain(output.Streams, stream => stream.Kind == StreamKind.Audio);
+            Assert.NotNull(output.PrimaryVideoStream);
+        }
+
+        [Theory]
+        [InlineData(CutMode.Keyframe)]
+        [InlineData(CutMode.FrameAccurate)]
+        public async Task ExecuteAsync_MergeWithAMutedSegment_KeepsOneContinuousTrackWithSilence(CutMode cutMode)
+        {
+            (FFprobeMediaProbe probe, MediaInfo media) = await PrepareAsync();
+            KeyframeIndex keyframes = await probe.ReadKeyframesAsync(media, media.PrimaryVideoStream!.Index, TestContext.Current.CancellationToken);
+
+            // The first two seconds keep their sound, the next three are muted.
+            ExportOptions options = new() { OutputDirectory = _directory, Mode = ExportMode.Merge, CutMode = cutMode, Container = ContainerFormat.Mp4 };
+            ExportPlan plan = ExportPlanner.CreatePlan(media, keyframes, [Segment(0, 2), Segment(6, 9, muted: true)], options);
+            await new FFmpegExportExecutor(_tools!).ExecuteAsync(plan, cancellationToken: TestContext.Current.CancellationToken);
+
+            string output = plan.OutputFiles[0];
+            // Exact parts are joined seamlessly. Keyframe parts are whole stream copies, and the concat demuxer leaves a
+            // step of a couple of frames at each joint with or without muting, so there the check is that the silence
+            // fills the muted segment instead of leaving a hole in the audio.
+            bool exact = cutMode == CutMode.FrameAccurate;
+            AssertNoGaps(await ReadPacketTimesAsync(output, "v:0"), exact ? 1.5 / FrameRate : 0.1);
+            AssertNoGaps(await ReadPacketTimesAsync(output, "a:0"), exact ? 1.5 * 1024 / 48_000 : 0.1);
+            Assert.True(await MeasureMaxVolumeAsync(output, 0.2, 1.5) > -20, "The audible segment lost its sound.");
+            Assert.True(await MeasureMaxVolumeAsync(output, 2.3, 2.5) < -80, "The muted segment is not silent.");
+
+            // The silence lasts as long as the muted segment, so the audio still reaches the end of the video.
+            double videoEnd = (await ReadPacketTimesAsync(output, "v:0")).Max();
+            Assert.InRange((await ReadPacketTimesAsync(output, "a:0")).Max(), videoEnd - 0.1, videoEnd + 0.1);
+        }
+
+        [Fact]
+        public async Task ExecuteAsync_ChosenNameOfAnExistingFile_ReplacesIt()
+        {
+            (FFprobeMediaProbe probe, MediaInfo media) = await PrepareAsync();
+            KeyframeIndex keyframes = await probe.ReadKeyframesAsync(media, media.PrimaryVideoStream!.Index, TestContext.Current.CancellationToken);
+            string destination = Path.Combine(_directory, "holiday.mkv");
+            await File.WriteAllTextAsync(destination, "previous contents", TestContext.Current.CancellationToken);
+
+            ExportOptions options = new() { OutputDirectory = _directory, OutputName = "holiday" };
+            ExportPlan plan = ExportPlanner.CreatePlan(media, keyframes, [Segment(2, 6)], options);
+            await new FFmpegExportExecutor(_tools!).ExecuteAsync(plan, cancellationToken: TestContext.Current.CancellationToken);
+
+            Assert.Equal([destination], plan.OutputFiles);
+            Assert.NotNull((await probe.ProbeAsync(destination, TestContext.Current.CancellationToken)).PrimaryVideoStream);
+            Assert.False(File.Exists(destination + ".trimc-new"));
+        }
+
         private async Task<(FFprobeMediaProbe Probe, MediaInfo Media)> PrepareAsync()
         {
             Assert.SkipWhen(_tools is null, "FFmpeg was not found; set TRIMC_FFMPEG_DIR or add ffmpeg to PATH to run integration tests.");
@@ -224,7 +284,32 @@ namespace TrimC.FFmpeg.Integration.Tests
             return output.Trim();
         }
 
-        private static Segment Segment(double start, double end) => new() { Id = Guid.NewGuid(), Range = new TimeRange(Seconds(start), Seconds(end)) };
+        // volumedetect reports the loudest sample of the decoded range in dBFS; digital silence reports -inf.
+        private async Task<double> MeasureMaxVolumeAsync(string path, double start, double duration)
+        {
+            using Process process = Process.Start(new ProcessStartInfo(_tools!.FFmpegPath)
+            {
+                ArgumentList =
+                {
+                    "-hide_banner", "-nostdin",
+                    "-ss", start.ToString(CultureInfo.InvariantCulture), "-t", duration.ToString(CultureInfo.InvariantCulture),
+                    "-i", path, "-map", "0:a:0", "-af", "volumedetect", "-f", "null", "-",
+                },
+                RedirectStandardError = true,
+            })!;
+
+            string errors = await process.StandardError.ReadToEndAsync(TestContext.Current.CancellationToken);
+            await process.WaitForExitAsync(TestContext.Current.CancellationToken);
+
+            const string Marker = "max_volume: ";
+            int index = errors.IndexOf(Marker, StringComparison.Ordinal);
+            Assert.True(index >= 0, errors);
+            string value = errors[(index + Marker.Length)..].Split(' ')[0];
+            return value == "-inf" ? double.NegativeInfinity : double.Parse(value, CultureInfo.InvariantCulture);
+        }
+
+        private static Segment Segment(double start, double end, bool muted = false) =>
+            new() { Id = Guid.NewGuid(), Range = new TimeRange(Seconds(start), Seconds(end)), IsMuted = muted };
 
         private static TimeSpan Seconds(double value) => TimeSpan.FromSeconds(value);
     }

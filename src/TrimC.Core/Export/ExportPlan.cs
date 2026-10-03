@@ -27,6 +27,15 @@ namespace TrimC.Export
         public required IReadOnlyList<string> TemporaryFiles { get; init; }
 
         /// <summary>
+        /// Gets the outputs that may replace an existing file, because the user chose that file as the destination.
+        /// </summary>
+        /// <remarks>
+        /// An executor writes these under a temporary name and moves them over the existing file only once the whole
+        /// plan has succeeded, so a failed or canceled export leaves the original untouched.
+        /// </remarks>
+        public IReadOnlyList<string> ReplaceableFiles { get; init; } = [];
+
+        /// <summary>
         /// Gets the total workload of all steps, used as the denominator for overall progress.
         /// </summary>
         public TimeSpan TotalWorkload

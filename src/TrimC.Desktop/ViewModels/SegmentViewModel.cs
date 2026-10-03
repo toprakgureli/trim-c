@@ -64,6 +64,11 @@ namespace TrimC.Desktop.ViewModels
         public string DurationText => Timecode.Format(Segment.Range.Duration);
 
         /// <summary>
+        /// Gets a value indicating whether the segment is exported without sound.
+        /// </summary>
+        public bool IsMuted => Segment.IsMuted;
+
+        /// <summary>
         /// Gets or sets the label used when naming the exported file.
         /// </summary>
         public string? Label

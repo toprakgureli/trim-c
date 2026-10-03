@@ -19,8 +19,15 @@ namespace TrimC.FFmpeg.Exporting
     /// An <see cref="IExportExecutor"/> that runs each step of a plan as an ffmpeg process.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Steps run sequentially. Stream copy is bound by disk throughput rather than CPU, so running steps in
     /// parallel would only cause the processes to compete for the same disk.
+    /// </para>
+    /// <para>
+    /// Outputs listed in <see cref="ExportPlan.ReplaceableFiles"/> are written next to their destination under a
+    /// temporary name and moved over it once every step has succeeded, so replacing a file never destroys it before
+    /// its replacement exists.
+    /// </para>
     /// </remarks>
     public sealed partial class FFmpegExportExecutor : IExportExecutor
     {
@@ -44,6 +51,7 @@ namespace TrimC.FFmpeg.Exporting
         /// <inheritdoc/>
         /// <exception cref="ArgumentNullException"><paramref name="plan"/> is <see langword="null"/>.</exception>
         /// <exception cref="FFmpegException">A step failed.</exception>
+        /// <exception cref="IOException">A replaced file could not be overwritten, for example because it is open elsewhere.</exception>
         public async Task ExecuteAsync(ExportPlan plan, IProgress<ExportProgress>? progress = null, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(plan);
@@ -55,6 +63,11 @@ namespace TrimC.FFmpeg.Exporting
             // Only files this executor has started writing are ever deleted, so a failure can never remove a file
             // that some other process created at one of the planned paths after planning.
             List<string> created = [];
+            Dictionary<string, string> staged = new(StringComparer.OrdinalIgnoreCase);
+            foreach (string path in plan.ReplaceableFiles)
+            {
+                staged[path] = path + ".trimc-new";
+            }
 
             try
             {
@@ -63,6 +76,11 @@ namespace TrimC.FFmpeg.Exporting
                     cancellationToken.ThrowIfCancellationRequested();
 
                     ExportStep step = plan.Steps[i];
+                    if (staged.TryGetValue(step.OutputPath, out string? stagingPath))
+                    {
+                        step = step with { OutputPath = stagingPath };
+                    }
+
                     int stepNumber = i + 1;
                     TimeSpan stepStart = completed;
 
@@ -86,6 +104,14 @@ namespace TrimC.FFmpeg.Exporting
 
                     completed += step.Workload;
                     ReportStep(step.Workload);
+                }
+
+                foreach ((string destination, string stagingPath) in staged)
+                {
+                    if (File.Exists(stagingPath))
+                    {
+                        File.Move(stagingPath, destination, overwrite: true);
+                    }
                 }
 
                 succeeded = true;

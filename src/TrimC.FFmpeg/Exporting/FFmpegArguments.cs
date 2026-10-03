@@ -7,6 +7,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using TrimC.Export;
+using TrimC.Media;
 
 namespace TrimC.FFmpeg.Exporting
 {
@@ -15,8 +16,9 @@ namespace TrimC.FFmpeg.Exporting
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Every command copies packets with <c>-c copy</c>; no step ever invokes an encoder, which is what makes the
-    /// export lossless. The commands share a common prologue that makes ffmpeg non-interactive, silent on standard
+    /// Commands copy packets with <c>-c copy</c> wherever they can, which is what makes the export lossless. Encoders run
+    /// only for the frames around an exact cut point and for the silence of a muted segment that is merged with audible
+    /// ones. The commands share a common prologue that makes ffmpeg non-interactive, silent on standard
     /// error except for real errors, and emit machine readable progress on standard output.
     /// </para>
     /// <para>
@@ -48,16 +50,40 @@ namespace TrimC.FFmpeg.Exporting
                 arguments.AddRange(["-ss", FormatSeconds(step.SeekPosition)]);
                 arguments.AddRange(["-t", FormatSeconds(step.Range.End - step.SeekPosition)]);
                 arguments.AddRange(["-i", step.SourcePath]);
-                AddStreamCopy(arguments, step);
+
+                // A timeline-preserving part is either copied or, for a muted segment, made entirely of audio decoded from
+                // the same input and silenced. The accurate seek then starts it exactly at the range start, with the
+                // source timestamps that -copyts preserves.
+                AddStreamCopy(arguments, step, generatesSilence: false);
                 arguments.AddRange(["-output_ts_offset", FormatSignedSeconds(offset)]);
             }
             else
             {
                 // -t counts from the seek position, which makes the output end at the range end.
                 arguments.AddRange(["-ss", FormatSeconds(step.SeekPosition)]);
-                arguments.AddRange(["-i", step.SourcePath]);
-                arguments.AddRange(["-t", FormatSeconds(step.Range.End - step.SeekPosition)]);
-                AddStreamCopy(arguments, step);
+
+                if (step.SilencedStreams.Count == 0)
+                {
+                    arguments.AddRange(["-i", step.SourcePath]);
+                    arguments.AddRange(["-t", FormatSeconds(step.Range.End - step.SeekPosition)]);
+                }
+                else
+                {
+                    // ffmpeg measures an output duration limit for encoded streams from their first frame rather than
+                    // from zero, so the copied streams are limited while reading instead. Each silenced stream comes
+                    // from a generator that lasts exactly as long as the range and is shifted onto the copied video,
+                    // whose zero is the seek position rather than the keyframe the range starts on.
+                    arguments.AddRange(["-t", FormatSeconds(step.Range.End - step.SeekPosition)]);
+                    arguments.AddRange(["-i", step.SourcePath]);
+                    foreach (MediaStreamInfo stream in step.SilencedStreams)
+                    {
+                        arguments.AddRange(["-itsoffset", FormatSignedSeconds(step.Range.Start - step.SeekPosition)]);
+                        arguments.AddRange(["-f", "lavfi", "-t", FormatSeconds(step.Range.Duration)]);
+                        arguments.AddRange(["-i", CreateSilenceSource(stream)]);
+                    }
+                }
+
+                AddStreamCopy(arguments, step, generatesSilence: true);
                 arguments.AddRange(["-map_metadata", "0"]);
 
                 // Shifts timestamps so that the output starts at zero, which players and editors expect.
@@ -274,14 +300,30 @@ namespace TrimC.FFmpeg.Exporting
             _ => throw new NotSupportedException($"Re-encoding '{codecName}' video is not supported."),
         };
 
-        private static void AddStreamCopy(List<string> arguments, CopyRangeStep step)
+        private static void AddStreamCopy(List<string> arguments, CopyRangeStep step, bool generatesSilence)
         {
             foreach (int index in step.StreamIndexes)
             {
-                arguments.AddRange(["-map", string.Create(CultureInfo.InvariantCulture, $"0:{index}")]);
+                int silenced = IndexOfSilenced(step, index);
+                string map = silenced < 0 || !generatesSilence
+                    ? string.Create(CultureInfo.InvariantCulture, $"0:{index}")
+                    : string.Create(CultureInfo.InvariantCulture, $"{silenced + 1}:0");
+                arguments.AddRange(["-map", map]);
             }
 
             arguments.AddRange(["-c", "copy"]);
+
+            // Silenced streams are every audio stream of the step, listed in stream order, so the n-th of them is the
+            // n-th audio stream of the output.
+            for (int i = 0; i < step.SilencedStreams.Count; i++)
+            {
+                string specifier = string.Create(CultureInfo.InvariantCulture, $":a:{i}");
+                arguments.AddRange(["-c" + specifier, GetSilenceEncoder(step.SilencedStreams[i].CodecName)]);
+                if (!generatesSilence)
+                {
+                    arguments.AddRange(["-filter" + specifier, "volume=0"]);
+                }
+            }
 
             if (step.StartsExactly)
             {
@@ -293,6 +335,42 @@ namespace TrimC.FFmpeg.Exporting
             {
                 arguments.AddRange(["-frames:v", packets.ToString(CultureInfo.InvariantCulture)]);
             }
+        }
+
+        /// <summary>
+        /// Gets the ffmpeg encoder that produces audio in the same codec as the source stream.
+        /// </summary>
+        /// <param name="codecName">The source codec name reported by ffprobe.</param>
+        /// <returns>The encoder name passed to <c>-c:a</c>.</returns>
+        /// <exception cref="NotSupportedException">No encoder for <paramref name="codecName"/> is known.</exception>
+        internal static string GetSilenceEncoder(string codecName) => codecName switch
+        {
+            "aac" or "ac3" or "eac3" or "flac" or "alac" => codecName,
+            "opus" => "libopus",
+            "mp3" => "libmp3lame",
+            "vorbis" => "libvorbis",
+            _ when codecName.StartsWith("pcm_", StringComparison.Ordinal) => codecName,
+            _ => throw new NotSupportedException($"Silence cannot be encoded as '{codecName}' audio."),
+        };
+
+        private static int IndexOfSilenced(CopyRangeStep step, int index)
+        {
+            for (int i = 0; i < step.SilencedStreams.Count; i++)
+            {
+                if (step.SilencedStreams[i].Index == index)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private static string CreateSilenceSource(MediaStreamInfo stream)
+        {
+            // "Nc" names a layout by its channel count alone, for streams whose container does not record the layout.
+            string layout = stream.ChannelLayout ?? string.Create(CultureInfo.InvariantCulture, $"{stream.Channels}c");
+            return string.Create(CultureInfo.InvariantCulture, $"anullsrc=sample_rate={stream.SampleRate}:channel_layout={layout}");
         }
 
         private static string CreateConcatUri(IReadOnlyList<string> paths)

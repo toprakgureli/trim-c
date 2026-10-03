@@ -154,18 +154,6 @@
   <data name="SnapLabel" xml:space="preserve">
     <value>Cut starts at</value>
   </data>
-  <data name="OutputFolderLabel" xml:space="preserve">
-    <value>Output folder</value>
-  </data>
-  <data name="NextToSource" xml:space="preserve">
-    <value>Next to the source file</value>
-  </data>
-  <data name="ChangeFolderButton" xml:space="preserve">
-    <value>Change…</value>
-  </data>
-  <data name="UseSourceFolderButton" xml:space="preserve">
-    <value>Use source folder</value>
-  </data>
   <data name="OpenFolderWhenDone" xml:space="preserve">
     <value>Open the folder when finished</value>
   </data>
@@ -313,10 +301,52 @@
   <data name="MediaFilesFilter" xml:space="preserve">
     <value>Media files</value>
   </data>
-  <data name="FolderDialogTitle" xml:space="preserve">
-    <value>Export to folder</value>
-  </data>
   <data name="ShellFileTypeName" xml:space="preserve">
     <value>Video (trim-c)</value>
+  </data>
+  <data name="MenuRemoveSound" xml:space="preserve">
+    <value>Remove sound</value>
+  </data>
+  <data name="MenuRestoreSound" xml:space="preserve">
+    <value>Restore sound</value>
+  </data>
+  <data name="MenuDeleteClip" xml:space="preserve">
+    <value>Delete clip</value>
+  </data>
+  <data name="MutedBadge" xml:space="preserve">
+    <value>No sound</value>
+  </data>
+  <data name="StatusSoundRemoved" xml:space="preserve">
+    <value>Sound removed from {0} – {1}. That part is exported silent.</value>
+  </data>
+  <data name="StatusSoundRestored" xml:space="preserve">
+    <value>Sound restored for {0} – {1}.</value>
+  </data>
+  <data name="SaveDialogTitle" xml:space="preserve">
+    <value>Save the export</value>
+  </data>
+  <data name="SaveDialogSeveralTitle" xml:space="preserve">
+    <value>Name the files (each segment becomes its own file)</value>
+  </data>
+  <data name="FileTypeMp4" xml:space="preserve">
+    <value>MP4 video</value>
+  </data>
+  <data name="FileTypeMatroska" xml:space="preserve">
+    <value>Matroska video</value>
+  </data>
+  <data name="FileTypeQuickTime" xml:space="preserve">
+    <value>QuickTime video</value>
+  </data>
+  <data name="ZoomInTooltip" xml:space="preserve">
+    <value>Zoom in (Ctrl+wheel or Ctrl+=)</value>
+  </data>
+  <data name="ZoomOutTooltip" xml:space="preserve">
+    <value>Zoom out (Ctrl+wheel or Ctrl+-)</value>
+  </data>
+  <data name="ZoomFitButton" xml:space="preserve">
+    <value>Fit</value>
+  </data>
+  <data name="ZoomFitTooltip" xml:space="preserve">
+    <value>Show the whole video (Ctrl+0)</value>
   </data>
 </root>

@@ -169,18 +169,6 @@ namespace TrimC.Desktop.Resources
         /// <summary>Gets text like "Cut starts at".</summary>
         public static string SnapLabel => Get(nameof(SnapLabel));
 
-        /// <summary>Gets text like "Output folder".</summary>
-        public static string OutputFolderLabel => Get(nameof(OutputFolderLabel));
-
-        /// <summary>Gets text like "Next to the source file".</summary>
-        public static string NextToSource => Get(nameof(NextToSource));
-
-        /// <summary>Gets text like "Change&#x2026;".</summary>
-        public static string ChangeFolderButton => Get(nameof(ChangeFolderButton));
-
-        /// <summary>Gets text like "Use source folder".</summary>
-        public static string UseSourceFolderButton => Get(nameof(UseSourceFolderButton));
-
         /// <summary>Gets text like "Open the folder when finished".</summary>
         public static string OpenFolderWhenDone => Get(nameof(OpenFolderWhenDone));
 
@@ -328,11 +316,53 @@ namespace TrimC.Desktop.Resources
         /// <summary>Gets text like "Media files".</summary>
         public static string MediaFilesFilter => Get(nameof(MediaFilesFilter));
 
-        /// <summary>Gets text like "Export to folder".</summary>
-        public static string FolderDialogTitle => Get(nameof(FolderDialogTitle));
-
         /// <summary>Gets text like "Video (trim-c)".</summary>
         public static string ShellFileTypeName => Get(nameof(ShellFileTypeName));
+
+        /// <summary>Gets text like "Remove sound".</summary>
+        public static string MenuRemoveSound => Get(nameof(MenuRemoveSound));
+
+        /// <summary>Gets text like "Restore sound".</summary>
+        public static string MenuRestoreSound => Get(nameof(MenuRestoreSound));
+
+        /// <summary>Gets text like "Delete clip".</summary>
+        public static string MenuDeleteClip => Get(nameof(MenuDeleteClip));
+
+        /// <summary>Gets text like "No sound".</summary>
+        public static string MutedBadge => Get(nameof(MutedBadge));
+
+        /// <summary>Gets text like "Sound removed from {0} &#x2013; {1}. That part is exported silent.".</summary>
+        public static string StatusSoundRemoved => Get(nameof(StatusSoundRemoved));
+
+        /// <summary>Gets text like "Sound restored for {0} &#x2013; {1}.".</summary>
+        public static string StatusSoundRestored => Get(nameof(StatusSoundRestored));
+
+        /// <summary>Gets text like "Save the export".</summary>
+        public static string SaveDialogTitle => Get(nameof(SaveDialogTitle));
+
+        /// <summary>Gets text like "Name the files (each segment becomes its own file)".</summary>
+        public static string SaveDialogSeveralTitle => Get(nameof(SaveDialogSeveralTitle));
+
+        /// <summary>Gets text like "MP4 video".</summary>
+        public static string FileTypeMp4 => Get(nameof(FileTypeMp4));
+
+        /// <summary>Gets text like "Matroska video".</summary>
+        public static string FileTypeMatroska => Get(nameof(FileTypeMatroska));
+
+        /// <summary>Gets text like "QuickTime video".</summary>
+        public static string FileTypeQuickTime => Get(nameof(FileTypeQuickTime));
+
+        /// <summary>Gets text like "Zoom in (Ctrl+wheel or Ctrl+=)".</summary>
+        public static string ZoomInTooltip => Get(nameof(ZoomInTooltip));
+
+        /// <summary>Gets text like "Zoom out (Ctrl+wheel or Ctrl+-)".</summary>
+        public static string ZoomOutTooltip => Get(nameof(ZoomOutTooltip));
+
+        /// <summary>Gets text like "Fit".</summary>
+        public static string ZoomFitButton => Get(nameof(ZoomFitButton));
+
+        /// <summary>Gets text like "Show the whole video (Ctrl+0)".</summary>
+        public static string ZoomFitTooltip => Get(nameof(ZoomFitTooltip));
 
         /// <summary>
         /// Formats a localized template with culture-aware formatting of its arguments.

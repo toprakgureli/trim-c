@@ -3,12 +3,9 @@
 
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using TrimC.Desktop.Formatting;
 using TrimC.Desktop.Resources;
-using TrimC.Desktop.Services;
 using TrimC.Desktop.Settings;
 using TrimC.Editing;
 using TrimC.Export;
@@ -20,30 +17,22 @@ namespace TrimC.Desktop.ViewModels
     /// </summary>
     /// <remarks>
     /// The dialog starts from the persisted <see cref="AppSettings"/> and hands the confirmed choices back through
-    /// <see cref="ApplyTo"/>, so the next export starts with the same choices.
+    /// <see cref="ApplyTo"/>, so the next export starts with the same choices. Where the files go is not part of it:
+    /// confirming the dialog leads to the standard save dialog, which asks for the name and the folder every time.
     /// </remarks>
     internal sealed partial class ExportDialogViewModel : ObservableObject
     {
-        private readonly IFileDialogService _dialogs;
-        private readonly string _sourceDirectory;
-
         /// <summary>
         /// Initializes a new instance of the <see cref="ExportDialogViewModel"/> class.
         /// </summary>
         /// <param name="settings">The persisted settings the dialog starts from.</param>
         /// <param name="segmentCount">The number of segments that will be exported.</param>
         /// <param name="totalDuration">The combined duration of the segments.</param>
-        /// <param name="sourceDirectory">The folder of the source file, used when no output folder is chosen.</param>
-        /// <param name="dialogs">The folder picker.</param>
-        /// <exception cref="ArgumentNullException">Any reference argument is <see langword="null"/>.</exception>
-        public ExportDialogViewModel(AppSettings settings, int segmentCount, TimeSpan totalDuration, string sourceDirectory, IFileDialogService dialogs)
+        /// <exception cref="ArgumentNullException"><paramref name="settings"/> is <see langword="null"/>.</exception>
+        public ExportDialogViewModel(AppSettings settings, int segmentCount, TimeSpan totalDuration)
         {
             ArgumentNullException.ThrowIfNull(settings);
-            ArgumentNullException.ThrowIfNull(sourceDirectory);
-            ArgumentNullException.ThrowIfNull(dialogs);
 
-            _dialogs = dialogs;
-            _sourceDirectory = sourceDirectory;
             SegmentCount = segmentCount;
             Summary = Strings.Format(Strings.ExportSummary, segmentCount, Timecode.Format(totalDuration));
 
@@ -51,7 +40,6 @@ namespace TrimC.Desktop.ViewModels
             SelectedMode = Find(ModeOptions, settings.Mode);
             SelectedCutMode = Find(CutModeOptions, settings.CutMode);
             SelectedSnapMode = Find(SnapModeOptions, settings.SnapMode);
-            OutputDirectory = settings.OutputDirectory;
             OpenFolderWhenDone = settings.OpenFolderWhenDone;
         }
 
@@ -112,11 +100,6 @@ namespace TrimC.Desktop.ViewModels
         [ObservableProperty]
         public partial ChoiceOption<KeyframeSnapMode> SelectedSnapMode { get; set; }
 
-        /// <summary>Gets or sets the chosen output folder, or <see langword="null"/> for the folder of the source file.</summary>
-        [ObservableProperty]
-        [NotifyPropertyChangedFor(nameof(OutputDirectoryText), nameof(HasCustomOutputDirectory))]
-        public partial string? OutputDirectory { get; set; }
-
         /// <summary>Gets or sets a value indicating whether the output folder opens after the export.</summary>
         [ObservableProperty]
         public partial bool OpenFolderWhenDone { get; set; }
@@ -126,17 +109,6 @@ namespace TrimC.Desktop.ViewModels
 
         /// <summary>Gets an explanation of the selected precision.</summary>
         public string PrecisionHint => IsKeyframeMode ? Strings.PrecisionKeyframeHint : Strings.PrecisionExactHint;
-
-        /// <summary>Gets the output folder as shown to the user.</summary>
-        public string OutputDirectoryText => OutputDirectory ?? $"{Strings.NextToSource} ({_sourceDirectory})";
-
-        /// <summary>Gets a value indicating whether a folder other than the source folder is chosen.</summary>
-        public bool HasCustomOutputDirectory => OutputDirectory is not null;
-
-        /// <summary>
-        /// Gets the folder that receives the files.
-        /// </summary>
-        public string EffectiveOutputDirectory => OutputDirectory ?? _sourceDirectory;
 
         /// <summary>
         /// Returns <paramref name="settings"/> updated with the choices made in the dialog.
@@ -153,26 +125,9 @@ namespace TrimC.Desktop.ViewModels
                 Mode = SelectedMode.Value,
                 CutMode = SelectedCutMode.Value,
                 SnapMode = SelectedSnapMode.Value,
-                OutputDirectory = OutputDirectory,
                 OpenFolderWhenDone = OpenFolderWhenDone,
             };
         }
-
-        /// <summary>Lets the user choose another output folder.</summary>
-        /// <returns>A task that completes when the folder picker closes.</returns>
-        [RelayCommand]
-        private async Task ChooseFolderAsync()
-        {
-            string? folder = await _dialogs.PickFolderAsync(EffectiveOutputDirectory).ConfigureAwait(true);
-            if (folder is not null)
-            {
-                OutputDirectory = folder;
-            }
-        }
-
-        /// <summary>Writes the exports next to the source file again.</summary>
-        [RelayCommand]
-        private void UseSourceFolder() => OutputDirectory = null;
 
         private static ChoiceOption<T> Find<T>(IReadOnlyList<ChoiceOption<T>> options, T value)
         {

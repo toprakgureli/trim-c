@@ -61,6 +61,8 @@ namespace TrimC.FFmpeg.Probing
 
         public int? Channels { get; set; }
 
+        public string? ChannelLayout { get; set; }
+
         public string? SampleRate { get; set; }
 
         public string? BitRate { get; set; }
