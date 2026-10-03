@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using Microsoft.Extensions.Logging;
 using TrimC.Desktop.Playback.Interop;
+using TrimC.Desktop.Resources;
 
 namespace TrimC.Desktop.Playback
 {
@@ -85,7 +86,7 @@ namespace TrimC.Desktop.Playback
             }
             catch (DllNotFoundException ex)
             {
-                FailureReason = "libmpv was not found. Place libmpv-2.dll next to the application to enable preview.";
+                FailureReason = Strings.PlayerLibraryMissing;
                 LogLibraryMissing(ex);
                 StateChanged?.Invoke(this, EventArgs.Empty);
                 return;
@@ -93,7 +94,7 @@ namespace TrimC.Desktop.Playback
 
             if (handle == 0)
             {
-                FailureReason = "libmpv could not create a player instance.";
+                FailureReason = Strings.PlayerCreateFailed;
                 StateChanged?.Invoke(this, EventArgs.Empty);
                 return;
             }

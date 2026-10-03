@@ -9,7 +9,7 @@
 
 Kayıtları kalite kaybı olmadan kesen bir masaüstü video kesme aracı. Ya orijinal paketleri hiç dokunmadan kopyalar ya da kesimin tam bir karede olması gerekiyorsa yalnızca kesim noktalarının çevresindeki birkaç kareyi yeniden kodlar.
 
-![Keyframe modunda iki segment seçilmiş trim-c](docs/images/editor-keyframe.png)
+![Zaman çizelgesinde sarı kırpma tutamaçlarıyla trim-c](docs/images/trim.tr.png)
 
 ## Neden geliştirdim?
 
@@ -19,12 +19,15 @@ trim-c bunun tersini yapıyor. Kayıt programının yazdığı paketler yeni dos
 
 ## Ne yapar?
 
-- Kaydı açar, keyframe'lerini okur ve yakınlaştırılabilen bir zaman çizelgesinde gösterir.
-- Saklanacak ya da çıkarılacak bölümleri klavyeyle kare kare işaretlemeni sağlar.
-- Her bölümü ayrı bir dosya olarak dışa aktarır ya da hepsini tek dosyada birleştirir. MP4, MKV ve MOV desteklenir.
+- Kaydı videonun tamamı seçili olarak açar. Filmler ve TV uygulamasındaki gibi zaman çizelgesindeki iki sarı tutamacı sürükleyerek kırparsın. Önizleme, tutamacı kare kare takip eder.
+- Daha ince işler için elle düzenleme araçlarını **Gelişmiş** panelinde tutar. Saklanacak ya da çıkarılacak bölümleri klavyeyle işaretleyebilir, segmentleri bölebilir, tersine çevirebilir ve listede görebilirsin.
+- Her düzenlemeyi Ctrl+Z ile geri alır, Ctrl+Y (ya da Ctrl+Shift+Z) ile yineler.
+- Her bölümü ayrı bir dosya olarak dışa aktarır ya da hepsini tek dosyada birleştirir. MP4, MKV ve MOV desteklenir. İş bitince çıktı klasörünü açar.
+- Yaygın video biçimlerinde Windows'un "Birlikte aç" menüsünde görünür.
+- Türkçe ve İngilizce arayüzle gelir.
 - İki kesim hassasiyeti sunar:
   - **Keyframe:** Tamamen kayıpsızdır ve anında biter. Kesim, seçimden en fazla bir GOP (genellikle 1–2 saniye) önce başlayabilir.
-  - **Tam kare:** Film ve televizyon kurgusundaki gibi tam olarak seçilen karelerde başlar ve biter. Yalnızca segmentin iki ucundaki yarım GOP'lar yeniden kodlanır, aradaki her şey yine kopyalanır.
+  - **Tam kare (varsayılan):** Film ve televizyon kurgusundaki gibi tam olarak seçilen karelerde başlar ve biter. Yalnızca segmentin iki ucundaki yarım GOP'lar yeniden kodlanır, aradaki her şey yine kopyalanır.
 
 ## Nasıl çalışır?
 
@@ -55,17 +58,17 @@ Segmentin sesi tek ve kesintisiz bir parça olarak kopyalanır, bu yüzden video
 
 Tam kare modunda alınan çıktıda ardışık video kareleri ve ses paketleri arasında boşluk yok, dosya hatasız çözülüyor. AMD AMF ile kodlanmış bir OBS kaydında da, yani x264 ile kodlanan uçlar AMF ile kodlanmış kopyayla birleştiğinde, iki tam kare segmentin birleştirilmesi seçilen kare sayısını birebir verdi.
 
-![İki aralık çıkarıldıktan sonra tam kare modunda dışa aktarma](docs/images/editor-exact-frame.png)
-
 ## Kurulum
 
 1. [Son sürümden](https://github.com/toprakgureli/trim-c/releases/latest) `trim-c-<sürüm>-win-x64.zip` dosyasını indir.
 2. İstediğin bir klasöre çıkar.
 3. `trim-c.exe` dosyasını çalıştır.
 
-Başka hiçbir şey gerekmez. Paket .NET çalışma ortamını, FFmpeg'i ve libmpv'yi içerir. Kayıt defterine bir şey yazmaz, yönetici izni de istemez. 64 bit Windows 10 ve 11'de çalışır. Kaldırmak için klasörü silmen yeterli.
+Başka hiçbir şey gerekmez. Paket .NET çalışma ortamını, FFmpeg'i ve libmpv'yi içerir, yönetici izni de istemez. 64 bit Windows 10 ve 11'de çalışır.
 
-Günlük dosyaları `%LOCALAPPDATA%\trim-c\logs` klasörüne yazılır. Bir sorun çıkarsa durum çubuğu hatayı gösterir, ayrıntılar günlük dosyasında bulunur.
+trim-c açılırken kendini video dosyalarının "Birlikte aç" menüsüne ekler. Bu kayıt yalnızca o anki kullanıcı için yapılır (`HKEY_CURRENT_USER\Software\Classes` altında) ve hiçbir biçimin varsayılan programını değiştirmez. Kayıt her açılışta yenilendiği için trim-c'yi başka bir klasöre taşısan da menü doğru yeri gösterir. Kaldırmak için önce **⋯ → Video dosyalarında “Birlikte aç” menüsünde göster** seçeneğinin işaretini kaldır, sonra klasörü sil.
+
+Ayarlar `%LOCALAPPDATA%\trim-c\settings.json` dosyasında, günlükler `%LOCALAPPDATA%\trim-c\logs` klasöründe tutulur. Bir sorun çıkarsa durum çubuğu hatayı gösterir, ayrıntılar günlük dosyasında bulunur.
 
 ### Kaynaktan derleme
 
@@ -79,22 +82,39 @@ cd trim-c
 
 Arşiv `artifacts/` klasörüne yazılır. Geliştirme sırasında uygulamayı `dotnet run --project src/TrimC.Desktop` ile başlatabilirsin. FFmpeg 9 veya üzerini kullan. Tam kare modu, paketle gelen FFmpeg 9 derlemesiyle doğrulandı, FFmpeg 6.1 ise bu modda yanlış kare sayıları üretiyor. Uygulama FFmpeg'i çalıştırılabilir dosyanın yanında, yanındaki `ffmpeg` klasöründe ya da `PATH` üzerinde, libmpv'yi (`libmpv-2.dll`) ise çalıştırılabilir dosyanın yanında arar.
 
+Geliştirme sırasında derlemenin kendini "Birlikte aç" menüsüne kaydetmesini istemiyorsan `TRIMC_SKIP_SHELL_INTEGRATION=1` ortam değişkenini tanımla.
+
 Kod Linux ve macOS'te de derleniyor ancak video önizlemesi mpv'yi yerel bir pencereye yerleştirdiği için yalnızca Windows'ta doğrulandı.
 
 ## Kullanım
 
-1. Kaydı **Open…** düğmesiyle, Ctrl+O ile, pencereye sürükleyip bırakarak ya da `trim-c.exe <dosya>` komutuyla aç. Son yöntem, Windows'taki "Birlikte aç" menüsünün de çalışmasını sağlar.
-2. Saklamak istediğin ilk kareye git ve **I** tuşuna bas, sonra bitişe git ve **O** tuşuna bas. Saklamak istediğin her bölüm için bunu tekrarla.
-3. Tersinden çalışmak istersen çıkarılacak ilk karede **I** tuşuna bas, saklanacak ilk kareye git ve **X** tuşuna bas. Aradaki kareler çıkarılır, geri kalan her şey saklanır.
-4. Kapsayıcıyı, segmentlerin ayrı mı yoksa birleştirilmiş mi aktarılacağını ve kesim hassasiyetini seç, ardından **Export** düğmesine ya da Ctrl+E'ye bas.
+1. Kaydı **Aç…** düğmesiyle, Ctrl+O ile ya da pencereye sürükleyip bırakarak aç. Dosya Gezgini'nde videoya sağ tıklayıp **Birlikte aç → trim-c** seçeneğini de kullanabilirsin.
+2. Zaman çizelgesindeki sarı tutamaçları saklamak istediğin ilk ve son kareye sürükle. Önizleme tutamacın altındaki kareyi, zaman çizelgesinin üstündeki özet de saklanacak aralığı gösterir. Tutamacı bırakmadan önce bir kareyi kontrol etmek istersen ok tuşlarıyla kare kare ilerleyebilirsin.
+3. **Dışa aktar…** düğmesine ya da Ctrl+E'ye bas. Açılan pencerede kesim hassasiyetini, kapsayıcıyı ve çıktı klasörünü seçersin. Seçimlerin bir sonraki sefer için hatırlanır.
 
-Başka bir klasör seçmediğin sürece dosyalar kaynağın yanına yazılır. Dosya adlarında dışa aktarılan aralık (örneğin `recording-00.00.06.000-00.00.18.000.mkv`) ya da segmente yazdığın etiket yer alır. Var olan dosyaların üzerine hiçbir zaman yazılmaz.
+![Dışa aktarma penceresi](docs/images/export-dialog.tr.png)
+
+Dışa aktarma bitince çıktı klasörü yeni dosya seçili olarak açılır. Başka bir klasör seçmediğin sürece dosyalar kaynağın yanına yazılır. Dosya adlarında dışa aktarılan aralık (örneğin `recording-00.00.18.300-00.01.04.900.mkv`) ya da segmente yazdığın etiket yer alır. Var olan dosyaların üzerine hiçbir zaman yazılmaz.
+
+### Gelişmiş araçlar
+
+Üst çubuktaki **Gelişmiş** düğmesi, bir kayıttan birden fazla bölüm saklamak için yan paneli açar. Panel segmentleri listeler, onları etiketlemeni, silmeni, tersine çevirmeni ya da sıfırlamanı sağlar. Elle düzenleme araçları da buradadır:
+
+- Saklamak istediğin ilk karede **I**, son karede **O** tuşuna basarak bir segment oluşturursun. İstediğin her bölüm için bunu tekrarla.
+- Tersinden çalışmak istersen çıkarılacak ilk karede **I** tuşuna bas, saklanacak ilk kareye git ve **X** tuşuna bas. Aradaki kareler çıkarılır, geri kalan her şey saklanır.
+- **S** tuşu imlecin altındaki segmenti ikiye böler. Her parçanın kendi tutamaçları olur.
+
+![Üç segmentli gelişmiş panel](docs/images/advanced.tr.png)
+
+**⋯** menüsünde dil seçimi (sistem, English ya da Türkçe), "Birlikte aç" kaydı ve günlük klasörünün kısayolu bulunur. Dil değişikliği bir sonraki açılışta uygulanır.
 
 | Tuş | İşlev |
 |---|---|
 | Boşluk | Oynat ya da duraklat |
 | Sol / Sağ ok | Önceki / sonraki kare |
 | Ctrl+Sol / Ctrl+Sağ | Önceki / sonraki keyframe |
+| Ctrl+Z | Geri al |
+| Ctrl+Y / Ctrl+Shift+Z | Yinele |
 | I | Başlangıç işaretini koy |
 | O | Oynatma imlecinde segmenti kapat |
 | X | Başlangıç işaretiyle oynatma imleci arasındaki kareleri çıkar |
@@ -105,7 +125,7 @@ Başka bir klasör seçmediğin sürece dosyalar kaynağın yanına yazılır. D
 | Ctrl+E | Dışa aktar |
 | Esc | Süren dışa aktarmayı iptal et |
 
-Zaman çizelgesinde tıklayarak ya da sürükleyerek konuma git, tekerlekle kaydır, Ctrl+tekerlekle yakınlaştır. Turuncu çizgiler keyframe'leri gösterir.
+Zaman çizelgesinde kırpmak için sarı tutamacı sürükle, konuma gitmek için başka bir yere tıkla ya da sürükle. Tekerlekle kaydırır, Ctrl+tekerlekle yakınlaştırırsın. Turuncu çizgiler keyframe'leri gösterir, karartılmış alanlar dışa aktarmaya girmez.
 
 ## Mimari
 
@@ -120,9 +140,9 @@ flowchart LR
 
 | Proje | Sorumluluk |
 |---|---|
-| `TrimC.Core` | Medya modeli, GOP başına paket sayısını da tutan keyframe dizini, kesim listesi ve dışa aktarma planı. G/Ç yok, arayüz yok, FFmpeg yok. |
+| `TrimC.Core` | Medya modeli, GOP başına paket sayısını da tutan keyframe dizini, geri alma geçmişiyle birlikte kesim listesi ve dışa aktarma planı. G/Ç yok, arayüz yok, FFmpeg yok. |
 | `TrimC.FFmpeg` | Medyayı ve keyframe'leri ffprobe ile okur, dışa aktarma planlarını ffmpeg ile çalıştırır. |
-| `TrimC.Desktop` | Avalonia uygulaması: zaman çizelgesi kontrolü, libmpv önizlemesi ve view model'ler. |
+| `TrimC.Desktop` | Avalonia uygulaması. Zaman çizelgesi kontrolü, libmpv önizlemesi, view model'ler, ayarlar, yerelleştirme ve "Birlikte aç" kaydı burada. |
 
 Dışa aktarma, planlama ve yürütme olarak ikiye ayrılır. `ExportPlanner` segmentleri ve seçenekleri bir `ExportPlan`'e, yani araçtan bağımsız adımlardan oluşan bir listeye (aralık kopyala, aralık kodla, parçaları birleştir) dönüştürür. `FFmpegExportExecutor` her adımı bir ffmpeg komutuna çevirir. Planlama yan etkisiz olduğu için keyframe, zaman kaydırma, akış seçimi ve dosya adlarıyla ilgili her karar FFmpeg olmadan çalışan birim testleriyle güvence altında.
 
@@ -134,7 +154,7 @@ dotnet test --solution trim-c.slnx
 dotnet format trim-c.slnx --verify-no-changes
 ```
 
-Entegrasyon testleri B-frame içeren bir klip üretir ve ffmpeg ile gerçek dışa aktarmalar yapar. Kare sayılarını, keyframe konumlarını ve zaman çizelgesindeki boşlukları kontrol eder. FFmpeg `PATH`'teyse ya da `TRIMC_FFMPEG_DIR` onu gösteriyorsa çalışır, değilse atlanır. CI her şeyi Windows ve Linux'ta çalıştırır.
+Entegrasyon testleri B-frame içeren bir klip üretir ve ffmpeg ile gerçek dışa aktarmalar yapar. Kare sayılarını, keyframe konumlarını ve zaman çizelgesindeki boşlukları kontrol eder. FFmpeg `PATH`'teyse ya da `TRIMC_FFMPEG_DIR` onu gösteriyorsa çalışır, değilse atlanır. "Birlikte aç" testleri kayıt defterinde geçici bir anahtara yazdığı için yalnızca CI'da ya da `TRIMC_RUN_REGISTRY_TESTS` tanımlıysa çalışır. CI her şeyi Windows ve Linux'ta çalıştırır.
 
 Kod, [dotnet/runtime kod stiline](https://github.com/dotnet/runtime/blob/main/docs/coding-guidelines/coding-style.md) uyar. `.editorconfig` dosyası dotnet/runtime'daki dosyadan türetildi. Public API'ler [Framework Design Guidelines](https://learn.microsoft.com/dotnet/standard/design-guidelines/) kurallarını izler. Kurallar derleme sırasında zorunlu tutulur. `AnalysisLevel` değeri `latest-all` olarak ayarlıdır, kod stili derlemede denetlenir ve uyarılar hata sayılır.
 
@@ -143,7 +163,6 @@ Kod, [dotnet/runtime kod stiline](https://github.com/dotnet/runtime/blob/main/do
 - Tam kare modu H.264 ve HEVC videoyu destekler. Diğer kodekler keyframe modunda kesilebilir.
 - Tam kare modunda transport stream parçaları yalnızca video ve ses taşır, bu yüzden altyazı ve veri akışları dışarıda kalır.
 - Keyframe modunda, video B-frame içeriyorsa kesimin sonuna bir iki kare fazladan girebilir. Bu kareler, seçilen son karelerin çözülebilmesi için gereklidir.
-- Arayüz İngilizcedir.
 
 ## Lisans
 

@@ -6,6 +6,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/TrimC.Core.Tests/TrimC.Core.Tests.csproj" />
+    <Project Path="tests/TrimC.Desktop.Tests/TrimC.Desktop.Tests.csproj" />
     <Project Path="tests/TrimC.FFmpeg.Tests/TrimC.FFmpeg.Tests.csproj" />
   </Folder>
 </Solution>

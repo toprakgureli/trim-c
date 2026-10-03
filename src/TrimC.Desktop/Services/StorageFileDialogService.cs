@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using TrimC.Desktop.Resources;
 
 namespace TrimC.Desktop.Services
 {
@@ -14,12 +15,6 @@ namespace TrimC.Desktop.Services
     /// </summary>
     internal sealed class StorageFileDialogService : IFileDialogService
     {
-        private static readonly FilePickerFileType s_mediaFiles = new("Media files")
-        {
-            Patterns = ["*.mkv", "*.mp4", "*.mov", "*.m4v", "*.webm", "*.ts", "*.m2ts", "*.flv", "*.avi", "*.mp3", "*.m4a", "*.flac", "*.wav"],
-            MimeTypes = ["video/*", "audio/*"],
-        };
-
         private readonly Func<TopLevel?> _topLevelAccessor;
 
         /// <summary>
@@ -47,9 +42,17 @@ namespace TrimC.Desktop.Services
 
             IReadOnlyList<IStorageFile> files = await storage.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                Title = "Open media",
+                Title = Strings.OpenDialogTitle,
                 AllowMultiple = false,
-                FileTypeFilter = [s_mediaFiles, FilePickerFileTypes.All],
+                FileTypeFilter =
+                [
+                    new FilePickerFileType(Strings.MediaFilesFilter)
+                    {
+                        Patterns = ["*.mkv", "*.mp4", "*.mov", "*.m4v", "*.webm", "*.ts", "*.m2ts", "*.mts", "*.flv", "*.avi", "*.wmv", "*.mp3", "*.m4a", "*.flac", "*.wav"],
+                        MimeTypes = ["video/*", "audio/*"],
+                    },
+                    FilePickerFileTypes.All,
+                ],
             }).ConfigureAwait(true);
 
             return files.Count > 0 ? files[0].TryGetLocalPath() : null;
@@ -67,7 +70,7 @@ namespace TrimC.Desktop.Services
             IStorageFolder? start = initialDirectory is null ? null : await storage.TryGetFolderFromPathAsync(initialDirectory).ConfigureAwait(true);
             IReadOnlyList<IStorageFolder> folders = await storage.OpenFolderPickerAsync(new FolderPickerOpenOptions
             {
-                Title = "Export to folder",
+                Title = Strings.FolderDialogTitle,
                 AllowMultiple = false,
                 SuggestedStartLocation = start,
             }).ConfigureAwait(true);

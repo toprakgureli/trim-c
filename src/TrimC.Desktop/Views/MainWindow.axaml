@@ -2,118 +2,133 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:TrimC.Desktop.Controls"
         xmlns:formatting="using:TrimC.Desktop.Formatting"
+        xmlns:res="using:TrimC.Desktop.Resources"
         xmlns:vm="using:TrimC.Desktop.ViewModels"
         x:Class="TrimC.Desktop.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="{Binding Title}"
         Width="1440" Height="900"
-        MinWidth="960" MinHeight="600"
+        MinWidth="900" MinHeight="560"
         WindowStartupLocation="CenterScreen"
         DragDrop.AllowDrop="True">
 
   <!--
-    Layout, top to bottom: toolbar, preview with the segment panel beside it, transport controls, timeline and status bar.
-    Keyboard shortcuts are mapped in code-behind so that they are suppressed while a text box has focus.
+    The main screen holds only what trimming needs: the video, the timeline with its handles and the playback
+    controls. Export settings live in a dialog, and the segment list with the manual tools lives in a panel that opens
+    on demand. Keyboard shortcuts are mapped in code-behind so that they are suppressed while a text box has focus.
   -->
   <Window.Styles>
-    <Style Selector="Button.transport">
-      <Setter Property="MinWidth" Value="40" />
+    <Style Selector="Button.icon">
+      <Setter Property="MinWidth" Value="38" />
       <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="FontSize" Value="15" />
     </Style>
     <Style Selector="TextBlock.caption">
-      <Setter Property="FontSize" Value="11" />
-      <Setter Property="Opacity" Value="0.7" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Opacity" Value="0.65" />
     </Style>
     <Style Selector="TextBlock.error">
       <Setter Property="Foreground" Value="#F87171" />
     </Style>
   </Window.Styles>
 
-  <Grid RowDefinitions="Auto,*,Auto,110,Auto">
+  <Grid RowDefinitions="Auto,*,Auto,104,Auto">
 
-    <!-- Toolbar -->
+    <!-- Top bar -->
     <Border Grid.Row="0" Padding="12,8" Background="#1E1F22">
       <Grid ColumnDefinitions="Auto,*,Auto">
-        <Button Grid.Column="0" Content="Open&#x2026;" Command="{Binding OpenFileCommand}" CommandParameter="{x:Null}" ToolTip.Tip="Open a media file (Ctrl+O)" />
-        <TextBlock Grid.Column="1" Margin="16,0" VerticalAlignment="Center" Text="{Binding MediaSummary}" TextTrimming="CharacterEllipsis" />
-        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-          <Button Content="Export" Classes="accent" Command="{Binding ExportCommand}" ToolTip.Tip="Export the segments without re-encoding (Ctrl+E)" />
-          <Button Content="Cancel" Command="{Binding ExportCancelCommand}" IsVisible="{Binding IsExporting}" />
+        <Button Grid.Column="0" Content="{x:Static res:Strings.OpenButton}" Command="{Binding OpenFileCommand}" CommandParameter="{x:Null}"
+                ToolTip.Tip="{x:Static res:Strings.OpenTooltip}" />
+        <TextBlock Grid.Column="1" Margin="16,0" VerticalAlignment="Center" Text="{Binding MediaSummary}" TextTrimming="CharacterEllipsis" Opacity="0.85" />
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+          <Button Classes="icon" Content="&#x21B6;" Command="{Binding UndoCommand}" ToolTip.Tip="{x:Static res:Strings.UndoTooltip}" />
+          <Button Classes="icon" Content="&#x21B7;" Command="{Binding RedoCommand}" ToolTip.Tip="{x:Static res:Strings.RedoTooltip}" />
+          <ToggleButton Content="{x:Static res:Strings.AdvancedButton}" IsChecked="{Binding IsAdvancedPanelOpen}" ToolTip.Tip="{x:Static res:Strings.AdvancedTooltip}" />
+          <Button Classes="icon" Content="&#x22EF;" ToolTip.Tip="{x:Static res:Strings.MoreTooltip}">
+            <Button.Flyout>
+              <MenuFlyout Placement="BottomEdgeAlignedRight">
+                <MenuItem Header="{x:Static res:Strings.MenuLanguage}">
+                  <MenuItem Header="{x:Static res:Strings.LanguageSystem}" ToggleType="Radio" GroupName="language" IsChecked="{Binding IsLanguageSystem, Mode=OneWay}"
+                            Command="{Binding SetLanguageCommand}" CommandParameter="" />
+                  <MenuItem Header="{x:Static res:Strings.LanguageEnglish}" ToggleType="Radio" GroupName="language" IsChecked="{Binding IsLanguageEnglish, Mode=OneWay}"
+                            Command="{Binding SetLanguageCommand}" CommandParameter="en" />
+                  <MenuItem Header="{x:Static res:Strings.LanguageTurkish}" ToggleType="Radio" GroupName="language" IsChecked="{Binding IsLanguageTurkish, Mode=OneWay}"
+                            Command="{Binding SetLanguageCommand}" CommandParameter="tr" />
+                </MenuItem>
+                <MenuItem Header="{x:Static res:Strings.MenuOpenWith}" ToggleType="CheckBox" IsChecked="{Binding ShowInOpenWith, Mode=TwoWay}"
+                          IsVisible="{Binding CanIntegrateWithShell}" />
+                <MenuItem Header="{x:Static res:Strings.MenuOpenLogs}" Command="{Binding OpenLogFolderCommand}" />
+              </MenuFlyout>
+            </Button.Flyout>
+          </Button>
+          <Button Content="{x:Static res:Strings.ExportButton}" Classes="accent" Command="{Binding ExportCommand}" ToolTip.Tip="{x:Static res:Strings.ExportTooltip}" />
+          <Button Content="{x:Static res:Strings.CancelExportButton}" Command="{Binding ExportCancelCommand}" IsVisible="{Binding IsExporting}" />
         </StackPanel>
       </Grid>
     </Border>
 
-    <!-- Preview and segment panel -->
-    <Grid Grid.Row="1" ColumnDefinitions="*,340">
+    <!-- Video, with the advanced panel beside it when it is open -->
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
       <Panel Grid.Column="0" Background="Black">
         <controls:VideoHost Player="{Binding Player}" IsVisible="{Binding HasMedia}" />
         <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.6" FontSize="16"
-                   Text="Drop a video here or press Ctrl+O" IsVisible="{Binding !HasMedia}" />
+                   Text="{x:Static res:Strings.DropHint}" IsVisible="{Binding !HasMedia}" />
         <Border VerticalAlignment="Bottom" Margin="12" Padding="10,6" CornerRadius="4" Background="#CC000000"
                 IsVisible="{Binding PlayerMessage, Converter={x:Static ObjectConverters.IsNotNull}}">
           <TextBlock Text="{Binding PlayerMessage}" TextWrapping="Wrap" />
         </Border>
       </Panel>
 
-      <Border Grid.Column="1" Background="#26272B" Padding="12">
-        <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
-          <TextBlock Grid.Row="0" Text="Segments" FontWeight="SemiBold" FontSize="15" />
-          <TextBlock Grid.Row="1" Margin="0,4,0,8" Classes="caption" Text="{Binding SelectionSummary}" TextWrapping="Wrap" />
+      <Border Grid.Column="1" Width="330" Background="#26272B" Padding="14" IsVisible="{Binding IsAdvancedPanelOpen}">
+        <Grid RowDefinitions="Auto,*,Auto,Auto">
+          <TextBlock Grid.Row="0" Text="{x:Static res:Strings.SegmentsHeader}" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,8" />
 
-          <ListBox Grid.Row="2" ItemsSource="{Binding Segments}" SelectedItem="{Binding SelectedSegment}" Background="Transparent">
+          <ListBox Grid.Row="1" ItemsSource="{Binding Segments}" SelectedItem="{Binding SelectedSegment}" Background="Transparent">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:SegmentViewModel">
-                <Grid ColumnDefinitions="28,*" RowDefinitions="Auto,Auto">
+                <Grid ColumnDefinitions="26,*,Auto" RowDefinitions="Auto,Auto">
                   <TextBlock Grid.RowSpan="2" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding Number}" />
-                  <TextBlock Grid.Column="1" FontFamily="Consolas,Menlo,monospace">
+                  <TextBlock Grid.Column="1" FontFamily="Consolas,Menlo,monospace" TextTrimming="CharacterEllipsis">
                     <Run Text="{Binding StartText}" />
                     <Run Text=" &#x2192; " />
                     <Run Text="{Binding EndText}" />
-                    <Run Text="  (" />
-                    <Run Text="{Binding DurationText}" />
-                    <Run Text=")" />
                   </TextBlock>
-                  <TextBox Grid.Row="1" Grid.Column="1" Margin="0,4,0,0" PlaceholderText="Label (used in the file name)" Text="{Binding Label}" />
+                  <TextBlock Grid.Column="2" Margin="8,0,0,0" Classes="caption" FontFamily="Consolas,Menlo,monospace" Text="{Binding DurationText}" />
+                  <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,4,0,0" PlaceholderText="{x:Static res:Strings.SegmentLabelPlaceholder}" Text="{Binding Label}" />
                 </Grid>
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
 
-          <WrapPanel Grid.Row="3" Margin="0,8,0,0">
-            <Button Margin="0,0,6,6" Content="Remove" Command="{Binding RemoveSelectedCommand}" ToolTip.Tip="Remove the selected segment (Delete)" />
-            <Button Margin="0,0,6,6" Content="Invert" Command="{Binding InvertSegmentsCommand}" ToolTip.Tip="Keep everything except the current segments" />
-            <Button Margin="0,0,6,6" Content="Clear" Command="{Binding ClearSegmentsCommand}" />
+          <WrapPanel Grid.Row="2" Margin="0,8,0,0">
+            <Button Margin="0,0,6,6" Content="{x:Static res:Strings.RemoveButton}" Command="{Binding RemoveSelectedCommand}" ToolTip.Tip="{x:Static res:Strings.RemoveTooltip}" />
+            <Button Margin="0,0,6,6" Content="{x:Static res:Strings.InvertButton}" Command="{Binding InvertSegmentsCommand}" ToolTip.Tip="{x:Static res:Strings.InvertTooltip}" />
+            <Button Margin="0,0,6,6" Content="{x:Static res:Strings.ResetButton}" Command="{Binding ResetSegmentsCommand}" ToolTip.Tip="{x:Static res:Strings.ResetTooltip}" />
           </WrapPanel>
 
-          <StackPanel Grid.Row="4" Spacing="6" Margin="0,8,0,0">
-            <TextBlock Text="Export" FontWeight="SemiBold" FontSize="15" />
-            <TextBlock Classes="caption" Text="Container" />
-            <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding ContainerOptions}" SelectedItem="{Binding SelectedContainer}" />
-            <TextBlock Classes="caption" Text="Segments" />
-            <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding ModeOptions}" SelectedItem="{Binding SelectedMode}" />
-            <TextBlock Classes="caption" Text="Cut precision" />
-            <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding CutModeOptions}" SelectedItem="{Binding SelectedCutMode}" />
-            <TextBlock Classes="caption" Text="Cut starts at" IsVisible="{Binding IsKeyframeMode}" />
-            <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding SnapModeOptions}" SelectedItem="{Binding SelectedSnapMode}" IsVisible="{Binding IsKeyframeMode}" />
-            <TextBlock Classes="caption" Text="Output folder" />
-            <Grid ColumnDefinitions="*,Auto">
-              <TextBlock VerticalAlignment="Center" Text="{Binding OutputDirectory}" TextTrimming="LeadingCharacterEllipsis" ToolTip.Tip="{Binding OutputDirectory}" />
-              <Button Grid.Column="1" Margin="6,0,0,0" Content="Change&#x2026;" Command="{Binding ChooseOutputDirectoryCommand}" />
-            </Grid>
+          <StackPanel Grid.Row="3" Margin="0,10,0,0" Spacing="6">
+            <TextBlock Text="{x:Static res:Strings.ManualToolsHeader}" FontWeight="SemiBold" FontSize="15" />
+            <WrapPanel>
+              <Button Margin="0,0,6,6" Content="{x:Static res:Strings.SetStartButton}" Command="{Binding SetMarkInCommand}" ToolTip.Tip="{x:Static res:Strings.SetStartTooltip}" />
+              <Button Margin="0,0,6,6" Content="{x:Static res:Strings.SetEndButton}" Command="{Binding SetMarkOutCommand}" ToolTip.Tip="{x:Static res:Strings.SetEndTooltip}" />
+              <Button Margin="0,0,6,6" Content="{x:Static res:Strings.SplitButton}" Command="{Binding SplitCommand}" ToolTip.Tip="{x:Static res:Strings.SplitTooltip}" />
+              <Button Margin="0,0,6,6" Content="{x:Static res:Strings.CutOutButton}" Command="{Binding CutOutCommand}" ToolTip.Tip="{x:Static res:Strings.CutOutTooltip}" />
+            </WrapPanel>
+            <TextBlock Classes="caption" Text="{x:Static res:Strings.ManualToolsHint}" TextWrapping="Wrap" />
           </StackPanel>
         </Grid>
       </Border>
     </Grid>
 
-    <!-- Transport -->
+    <!-- Playback controls and the summary of what will be kept -->
     <Border Grid.Row="2" Padding="12,6" Background="#1E1F22">
-      <Grid ColumnDefinitions="Auto,*,Auto">
+      <Grid ColumnDefinitions="Auto,*">
         <StackPanel Orientation="Horizontal" Spacing="4">
-          <Button Classes="transport" Content="&#x23EE;" Command="{Binding PreviousKeyframeCommand}" ToolTip.Tip="Previous keyframe (Ctrl+Left)" />
-          <Button Classes="transport" Content="&#x25C0;" Command="{Binding StepBackwardCommand}" ToolTip.Tip="Previous frame (Left)" />
-          <Button Classes="transport" Content="&#x23EF;" Command="{Binding TogglePlaybackCommand}" ToolTip.Tip="Play or pause (Space)" />
-          <Button Classes="transport" Content="&#x25B6;" Command="{Binding StepForwardCommand}" ToolTip.Tip="Next frame (Right)" />
-          <Button Classes="transport" Content="&#x23ED;" Command="{Binding NextKeyframeCommand}" ToolTip.Tip="Next keyframe (Ctrl+Right)" />
+          <Button Classes="icon" Content="&#x23EE;" Command="{Binding PreviousKeyframeCommand}" ToolTip.Tip="{x:Static res:Strings.PreviousKeyframeTooltip}" />
+          <Button Classes="icon" Content="&#x25C0;" Command="{Binding StepBackwardCommand}" ToolTip.Tip="{x:Static res:Strings.PreviousFrameTooltip}" />
+          <Button Classes="icon" Content="&#x23EF;" Command="{Binding TogglePlaybackCommand}" ToolTip.Tip="{x:Static res:Strings.PlayPauseTooltip}" />
+          <Button Classes="icon" Content="&#x25B6;" Command="{Binding StepForwardCommand}" ToolTip.Tip="{x:Static res:Strings.NextFrameTooltip}" />
+          <Button Classes="icon" Content="&#x23ED;" Command="{Binding NextKeyframeCommand}" ToolTip.Tip="{x:Static res:Strings.NextKeyframeTooltip}" />
           <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" FontFamily="Consolas,Menlo,monospace" FontSize="15">
             <Run Text="{Binding Position, Converter={x:Static formatting:TimecodeConverter.Instance}}" />
             <Run Text=" / " Foreground="Gray" />
@@ -121,11 +136,9 @@
           </TextBlock>
         </StackPanel>
 
-        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
-          <Button Content="Set start [I]" Command="{Binding SetMarkInCommand}" />
-          <Button Content="Set end [O]" Command="{Binding SetMarkOutCommand}" />
-          <Button Content="Split [S]" Command="{Binding SplitCommand}" />
-          <Button Content="Cut out [X]" Command="{Binding CutOutCommand}" ToolTip.Tip="Remove the frames between the start mark and the playhead" />
+        <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" IsVisible="{Binding HasMedia}">
+          <TextBlock HorizontalAlignment="Right" Text="{Binding TrimSummary}" FontFamily="Consolas,Menlo,monospace" FontSize="14" Foreground="#FACC15" />
+          <TextBlock HorizontalAlignment="Right" Classes="caption" Text="{x:Static res:Strings.TrimHint}" />
         </StackPanel>
       </Grid>
     </Border>
@@ -139,14 +152,16 @@
                               SelectedSegmentId="{Binding SelectedSegmentId}"
                               MarkIn="{Binding MarkIn}"
                               SeekCommand="{Binding SeekCommand}"
-                              ToolTip.Tip="Click or drag to seek. Wheel scrolls, Ctrl+Wheel zooms." />
+                              SelectSegmentCommand="{Binding SelectSegmentCommand}"
+                              TrimCommand="{Binding TrimCommand}" />
 
     <!-- Status bar -->
     <Border Grid.Row="4" Padding="12,4" Background="#1E1F22">
       <Grid ColumnDefinitions="*,Auto,Auto">
         <TextBlock VerticalAlignment="Center" Text="{Binding StatusMessage}" Classes.error="{Binding IsStatusError}" TextTrimming="CharacterEllipsis" />
         <ProgressBar Grid.Column="1" Width="220" Margin="12,0" Minimum="0" Maximum="100" Value="{Binding ExportPercent}" IsVisible="{Binding IsExporting}" />
-        <Button Grid.Column="2" Padding="8,2" Content="Show in folder" Command="{Binding RevealLastExportCommand}" IsVisible="{Binding LastExportedFile, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <Button Grid.Column="2" Padding="8,2" Content="{x:Static res:Strings.ShowInFolderButton}" Command="{Binding RevealLastExportCommand}"
+                IsVisible="{Binding LastExportedFile, Converter={x:Static ObjectConverters.IsNotNull}}" />
       </Grid>
     </Border>
 

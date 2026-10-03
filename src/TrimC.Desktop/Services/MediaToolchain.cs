@@ -42,6 +42,17 @@ namespace TrimC.Desktop.Services
         }
 
         /// <summary>
+        /// Initializes a new instance of the <see cref="MediaToolchain"/> class with explicit services, for tests.
+        /// </summary>
+        /// <param name="probe">The media probe, or <see langword="null"/> to simulate a missing FFmpeg.</param>
+        /// <param name="executor">The export executor, or <see langword="null"/> to simulate a missing FFmpeg.</param>
+        internal MediaToolchain(IMediaProbe? probe, IExportExecutor? executor)
+        {
+            Probe = probe;
+            Executor = executor;
+        }
+
+        /// <summary>
         /// Gets the located tools, or <see langword="null"/> when FFmpeg is not installed.
         /// </summary>
         public FFmpegTools? Tools { get; }

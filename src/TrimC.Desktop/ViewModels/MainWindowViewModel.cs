@@ -14,9 +14,12 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using TrimC.Desktop.Controls;
+using TrimC.Desktop.Diagnostics;
 using TrimC.Desktop.Formatting;
 using TrimC.Desktop.Playback;
+using TrimC.Desktop.Resources;
 using TrimC.Desktop.Services;
+using TrimC.Desktop.Settings;
 using TrimC.Editing;
 using TrimC.Export;
 using TrimC.FFmpeg;
@@ -32,6 +35,11 @@ namespace TrimC.Desktop.ViewModels
     /// The view model owns exactly one <see cref="CutList"/> per loaded file and treats it as the source of truth.
     /// Collections exposed to the view are projections that are rebuilt from the cut list whenever it raises
     /// <see cref="CutList.Changed"/>, so the view can never drift from the domain state.
+    /// </para>
+    /// <para>
+    /// Every change to the cut list goes through <see cref="EditHistory"/>, which makes all edits undoable: the trim
+    /// handles, the manual tools and the segment list alike. A newly opened file starts with one segment that covers
+    /// the whole media, so the plain workflow is to drag its two handles and export.
     /// </para>
     /// <para>
     /// The player reports state on its own thread. Updates are marshalled to the UI thread through the injected
@@ -51,14 +59,18 @@ namespace TrimC.Desktop.ViewModels
         private readonly IVideoPlayer _player;
         private readonly MediaToolchain _toolchain;
         private readonly IFileDialogService _dialogs;
+        private readonly IExportDialogService _exportDialog;
+        private readonly IShellIntegration _shellIntegration;
+        private readonly SettingsStore _settings;
         private readonly IDispatcher _dispatcher;
         private readonly ILogger<MainWindowViewModel> _logger;
 
         private CutList? _cutList;
+        private EditHistory? _history;
+        private IReadOnlyList<Segment>? _trimSnapshot;
         private CancellationTokenSource? _loadCancellation;
         private TimeSpan? _pendingSeekTarget;
         private long _pendingSeekTimestamp;
-        private bool _isOutputDirectoryUserSelected;
         private bool _isSelectingProgrammatically;
 
         /// <summary>
@@ -67,6 +79,9 @@ namespace TrimC.Desktop.ViewModels
         /// <param name="player">The preview player.</param>
         /// <param name="toolchain">The FFmpeg-backed media services.</param>
         /// <param name="dialogs">The file and folder pickers.</param>
+        /// <param name="exportDialog">The export settings dialog.</param>
+        /// <param name="shellIntegration">The "Open with" registration.</param>
+        /// <param name="settings">The persisted preferences.</param>
         /// <param name="dispatcher">The UI thread dispatcher.</param>
         /// <param name="logger">The logger.</param>
         /// <exception cref="ArgumentNullException">Any argument is <see langword="null"/>.</exception>
@@ -74,64 +89,36 @@ namespace TrimC.Desktop.ViewModels
             IVideoPlayer player,
             MediaToolchain toolchain,
             IFileDialogService dialogs,
+            IExportDialogService exportDialog,
+            IShellIntegration shellIntegration,
+            SettingsStore settings,
             IDispatcher dispatcher,
             ILogger<MainWindowViewModel> logger)
         {
             ArgumentNullException.ThrowIfNull(player);
             ArgumentNullException.ThrowIfNull(toolchain);
             ArgumentNullException.ThrowIfNull(dialogs);
+            ArgumentNullException.ThrowIfNull(exportDialog);
+            ArgumentNullException.ThrowIfNull(shellIntegration);
+            ArgumentNullException.ThrowIfNull(settings);
             ArgumentNullException.ThrowIfNull(dispatcher);
             ArgumentNullException.ThrowIfNull(logger);
 
             _player = player;
             _toolchain = toolchain;
             _dialogs = dialogs;
+            _exportDialog = exportDialog;
+            _shellIntegration = shellIntegration;
+            _settings = settings;
             _dispatcher = dispatcher;
             _logger = logger;
 
-            SelectedContainer = ContainerOptions[0];
-            SelectedMode = ModeOptions[0];
-            SelectedCutMode = CutModeOptions[0];
-            SelectedSnapMode = SnapModeOptions[0];
-
-            StatusMessage = toolchain.Tools is null
-                ? "FFmpeg was not found. Install FFmpeg or place ffmpeg and ffprobe next to the application."
-                : "Open a file or drop it onto the window.";
-            IsStatusError = toolchain.Tools is null;
+            IsAdvancedPanelOpen = settings.Current.IsAdvancedPanelOpen;
+            StatusMessage = toolchain.Probe is null ? Strings.StatusFFmpegMissing : Strings.StatusWelcome;
+            IsStatusError = toolchain.Probe is null;
 
             _player.StateChanged += OnPlayerStateChanged;
         }
-
-        /// <summary>Gets the selectable output containers.</summary>
-        public IReadOnlyList<ChoiceOption<ContainerFormat>> ContainerOptions { get; } =
-        [
-            new(ContainerFormat.SameAsSource, "Same as source"),
-            new(ContainerFormat.Mp4, "MP4"),
-            new(ContainerFormat.Matroska, "MKV"),
-            new(ContainerFormat.QuickTime, "MOV"),
-        ];
-
-        /// <summary>Gets the selectable export modes.</summary>
-        public IReadOnlyList<ChoiceOption<ExportMode>> ModeOptions { get; } =
-        [
-            new(ExportMode.SeparateFiles, "One file per segment"),
-            new(ExportMode.Merge, "Merge segments"),
-        ];
-
-        /// <summary>Gets the selectable cut precisions.</summary>
-        public IReadOnlyList<ChoiceOption<CutMode>> CutModeOptions { get; } =
-        [
-            new(CutMode.Keyframe, "Keyframe (lossless, instant)"),
-            new(CutMode.FrameAccurate, "Exact frame (re-encodes cut points only)"),
-        ];
-
-        /// <summary>Gets the selectable keyframe alignment strategies.</summary>
-        public IReadOnlyList<ChoiceOption<KeyframeSnapMode>> SnapModeOptions { get; } =
-        [
-            new(KeyframeSnapMode.Previous, "Previous keyframe (keep everything)"),
-            new(KeyframeSnapMode.Next, "Next keyframe (nothing extra)"),
-            new(KeyframeSnapMode.Nearest, "Nearest keyframe"),
-        ];
 
         /// <summary>Gets the segments in timeline order, projected for the segment list.</summary>
         public ObservableCollection<SegmentViewModel> Segments { get; } = [];
@@ -162,7 +149,7 @@ namespace TrimC.Desktop.ViewModels
         [ObservableProperty]
         public partial bool IsPaused { get; private set; } = true;
 
-        /// <summary>Gets the pending in-point set with <see cref="SetMarkInCommand"/>.</summary>
+        /// <summary>Gets the pending start mark set with <see cref="SetMarkInCommand"/>.</summary>
         [ObservableProperty]
         public partial TimeSpan? MarkIn { get; private set; }
 
@@ -170,7 +157,7 @@ namespace TrimC.Desktop.ViewModels
         [ObservableProperty]
         public partial IReadOnlyList<Segment> TimelineSegments { get; private set; } = [];
 
-        /// <summary>Gets or sets the segment selected in the list and highlighted on the timeline.</summary>
+        /// <summary>Gets or sets the segment selected in the list and on the timeline.</summary>
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(SelectedSegmentId))]
         [NotifyCanExecuteChangedFor(nameof(RemoveSelectedCommand), nameof(SetSelectedStartCommand), nameof(SetSelectedEndCommand))]
@@ -179,6 +166,10 @@ namespace TrimC.Desktop.ViewModels
         /// <summary>Gets a one-line technical summary of the loaded media.</summary>
         [ObservableProperty]
         public partial string MediaSummary { get; private set; } = string.Empty;
+
+        /// <summary>Gets a description of what will be exported, shown under the video.</summary>
+        [ObservableProperty]
+        public partial string TrimSummary { get; private set; } = string.Empty;
 
         /// <summary>Gets the message shown in the status bar.</summary>
         [ObservableProperty]
@@ -201,38 +192,14 @@ namespace TrimC.Desktop.ViewModels
         [ObservableProperty]
         public partial double ExportPercent { get; private set; }
 
-        /// <summary>Gets the folder that receives exported files.</summary>
-        [ObservableProperty]
-        public partial string? OutputDirectory { get; private set; }
-
         /// <summary>Gets the first file written by the most recent successful export.</summary>
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(RevealLastExportCommand))]
         public partial string? LastExportedFile { get; private set; }
 
-        /// <summary>Gets the combined duration of all segments.</summary>
+        /// <summary>Gets or sets a value indicating whether the advanced editing panel is shown.</summary>
         [ObservableProperty]
-        public partial string SelectionSummary { get; private set; } = string.Empty;
-
-        /// <summary>Gets or sets the output container.</summary>
-        [ObservableProperty]
-        public partial ChoiceOption<ContainerFormat> SelectedContainer { get; set; }
-
-        /// <summary>Gets or sets the export mode.</summary>
-        [ObservableProperty]
-        public partial ChoiceOption<ExportMode> SelectedMode { get; set; }
-
-        /// <summary>Gets or sets the cut precision.</summary>
-        [ObservableProperty]
-        [NotifyPropertyChangedFor(nameof(IsKeyframeMode))]
-        public partial ChoiceOption<CutMode> SelectedCutMode { get; set; }
-
-        /// <summary>Gets or sets the keyframe alignment strategy.</summary>
-        [ObservableProperty]
-        public partial ChoiceOption<KeyframeSnapMode> SelectedSnapMode { get; set; }
-
-        /// <summary>Gets a value indicating whether keyframe alignment applies, which is only the case in keyframe mode.</summary>
-        public bool IsKeyframeMode => SelectedCutMode.Value == CutMode.Keyframe;
+        public partial bool IsAdvancedPanelOpen { get; set; }
 
         /// <summary>Gets the window title.</summary>
         public string Title => Media is null ? "trim-c" : $"{Path.GetFileName(Media.FilePath)} - trim-c";
@@ -243,6 +210,80 @@ namespace TrimC.Desktop.ViewModels
         /// <summary>Gets the identifier of the selected segment for the timeline control.</summary>
         public Guid? SelectedSegmentId => SelectedSegment?.Segment.Id;
 
+        /// <summary>Gets a value indicating whether the "Open with" integration is available on this platform.</summary>
+        public bool CanIntegrateWithShell => _shellIntegration.IsSupported;
+
+        /// <summary>Gets or sets a value indicating whether trim-c is offered in the "Open with" menu of video files.</summary>
+        public bool ShowInOpenWith
+        {
+            get => _settings.Current.ShowInOpenWith;
+            set
+            {
+                if (value == _settings.Current.ShowInOpenWith)
+                {
+                    return;
+                }
+
+                _settings.Save(_settings.Current with { ShowInOpenWith = value });
+                OnPropertyChanged();
+                ApplyShellIntegration(reportResult: true);
+            }
+        }
+
+        /// <summary>Gets a value indicating whether the interface follows the Windows language.</summary>
+        public bool IsLanguageSystem => _settings.Current.Language.Length == 0;
+
+        /// <summary>Gets a value indicating whether the interface is in English.</summary>
+        public bool IsLanguageEnglish => _settings.Current.Language == "en";
+
+        /// <summary>Gets a value indicating whether the interface is in Turkish.</summary>
+        public bool IsLanguageTurkish => _settings.Current.Language == "tr";
+
+        /// <inheritdoc/>
+        public void Dispose()
+        {
+            _player.StateChanged -= OnPlayerStateChanged;
+            _loadCancellation?.Cancel();
+            _loadCancellation?.Dispose();
+        }
+
+        /// <summary>
+        /// Registers or removes the "Open with" entries according to the current setting.
+        /// </summary>
+        /// <param name="reportResult">Whether the outcome is shown in the status bar.</param>
+        public void ApplyShellIntegration(bool reportResult)
+        {
+            if (!_shellIntegration.IsSupported || Environment.ProcessPath is not string executable)
+            {
+                return;
+            }
+
+            try
+            {
+                if (ShowInOpenWith)
+                {
+                    _shellIntegration.Register(executable);
+                }
+                else
+                {
+                    _shellIntegration.Unregister();
+                }
+
+                if (reportResult)
+                {
+                    SetStatus(ShowInOpenWith ? Strings.StatusOpenWithOn : Strings.StatusOpenWithOff);
+                }
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.Security.SecurityException)
+            {
+                LogShellIntegrationFailed(ex);
+                if (reportResult)
+                {
+                    SetStatus(Strings.Format(Strings.StatusOpenWithFailed, ex.Message), isError: true);
+                }
+            }
+        }
+
         /// <summary>
         /// Reports an error that escaped a command, so that the user sees it and the session stays usable.
         /// </summary>
@@ -252,16 +293,13 @@ namespace TrimC.Desktop.ViewModels
         {
             ArgumentNullException.ThrowIfNull(exception);
 
-            string details = logFilePath is null ? string.Empty : $" Details were written to {logFilePath}.";
-            SetStatus($"Unexpected error: {exception.Message}{details}", isError: true);
-        }
+            string message = Strings.Format(Strings.StatusUnexpectedError, exception.Message);
+            if (logFilePath is not null)
+            {
+                message += " " + Strings.Format(Strings.StatusDetailsInLog, logFilePath);
+            }
 
-        /// <inheritdoc/>
-        public void Dispose()
-        {
-            _player.StateChanged -= OnPlayerStateChanged;
-            _loadCancellation?.Cancel();
-            _loadCancellation?.Dispose();
+            SetStatus(message, isError: true);
         }
 
         /// <summary>
@@ -275,7 +313,7 @@ namespace TrimC.Desktop.ViewModels
             IMediaProbe? probe = _toolchain.Probe;
             if (probe is null)
             {
-                SetStatus("FFmpeg was not found. Install FFmpeg or place ffmpeg and ffprobe next to the application.", isError: true);
+                SetStatus(Strings.StatusFFmpegMissing, isError: true);
                 return;
             }
 
@@ -297,7 +335,7 @@ namespace TrimC.Desktop.ViewModels
 
             try
             {
-                SetStatus($"Reading {Path.GetFileName(filePath)}…");
+                SetStatus(Strings.Format(Strings.StatusReading, Path.GetFileName(filePath)));
                 MediaInfo media = await probe.ProbeAsync(filePath, cancellationToken).ConfigureAwait(true);
 
                 LoadMedia(media);
@@ -307,11 +345,11 @@ namespace TrimC.Desktop.ViewModels
                 if (video is null)
                 {
                     Keyframes = KeyframeIndex.Empty;
-                    SetStatus("Ready. Audio-only media can be cut at any position.");
+                    SetStatus(Strings.StatusReadyAudio);
                     return;
                 }
 
-                SetStatus("Indexing keyframes…");
+                SetStatus(Strings.StatusIndexing);
                 KeyframeIndex keyframes = await probe.ReadKeyframesAsync(media, video.Index, cancellationToken).ConfigureAwait(true);
                 Keyframes = keyframes;
                 SetStatus(DescribeKeyframes(keyframes, media.Duration));
@@ -323,25 +361,61 @@ namespace TrimC.Desktop.ViewModels
             catch (Exception ex) when (ex is FFmpegException or IOException or UnauthorizedAccessException)
             {
                 LogOpenFailed(filePath, ex);
-                SetStatus(DescribeFailure($"Could not open {Path.GetFileName(filePath)}", ex), isError: true);
+                SetStatus(Strings.Format(Strings.StatusOpenFailed, Path.GetFileName(filePath), DescribeFailure(ex)), isError: true);
             }
         }
 
         private bool CanOpenFile(string? filePath) => !IsExporting;
 
-        /// <summary>
-        /// Moves the playhead in response to timeline interaction.
-        /// </summary>
+        /// <summary>Moves the playhead in response to timeline interaction.</summary>
         /// <param name="request">The requested position.</param>
         [RelayCommand]
         private void Seek(TimelineSeekRequest? request)
         {
-            if (request is null || Media is null)
+            if (request is not null && Media is not null)
+            {
+                SeekTo(request.Position, request.IsFinal);
+            }
+        }
+
+        /// <summary>Selects the segment that was clicked on the timeline.</summary>
+        /// <param name="segmentId">The identifier of the clicked segment.</param>
+        [RelayCommand]
+        private void SelectSegment(Guid segmentId) => SelectSegmentById(segmentId, seek: false);
+
+        /// <summary>
+        /// Applies a trim handle drag. The whole drag is recorded as one undoable edit, and the preview follows the handle
+        /// so that the user sees the frame they are about to cut at.
+        /// </summary>
+        /// <param name="request">The state of the drag.</param>
+        [RelayCommand]
+        private void Trim(TimelineTrimRequest? request)
+        {
+            if (request is null || _cutList is null || _history is null)
             {
                 return;
             }
 
-            SeekTo(request.Position, request.IsFinal);
+            if (request.Phase == TrimPhase.Started)
+            {
+                _trimSnapshot = _history.Capture();
+                SelectSegmentById(request.SegmentId, seek: false);
+            }
+
+            // Pointer positions fall between frames; snapping keeps every boundary on a real frame, which is what an exact
+            // cut needs and what the timecodes in the summary should show.
+            Segment segment = _cutList.MoveEdge(request.SegmentId, request.Edge, SnapToFrame(request.Position), FrameDuration());
+            TimeSpan edgePosition = request.Edge == SegmentEdge.Start ? segment.Range.Start : segment.Range.End;
+
+            // The end of a range is exclusive, so the preview shows the last kept frame rather than the first removed one.
+            TimeSpan preview = request.Edge == SegmentEdge.End ? edgePosition - FrameDuration() : edgePosition;
+            SeekTo(preview < TimeSpan.Zero ? TimeSpan.Zero : preview, exact: request.Phase == TrimPhase.Completed);
+
+            if (request.Phase == TrimPhase.Completed && _trimSnapshot is not null)
+            {
+                _history.Commit(_trimSnapshot);
+                _trimSnapshot = null;
+            }
         }
 
         /// <summary>Toggles between playing and paused.</summary>
@@ -382,7 +456,35 @@ namespace TrimC.Desktop.ViewModels
             }
         }
 
-        /// <summary>Sets the start of the next segment at the playhead.</summary>
+        /// <summary>Undoes the most recent edit.</summary>
+        [RelayCommand(CanExecute = nameof(CanUndo))]
+        private void Undo()
+        {
+            if (_history?.Undo() == true)
+            {
+                SetStatus(Strings.StatusUndone);
+            }
+        }
+
+        private bool CanUndo() => _history?.CanUndo == true && !IsExporting;
+
+        /// <summary>Reapplies the most recently undone edit.</summary>
+        [RelayCommand(CanExecute = nameof(CanRedo))]
+        private void Redo()
+        {
+            if (_history?.Redo() == true)
+            {
+                SetStatus(Strings.StatusRedone);
+            }
+        }
+
+        private bool CanRedo() => _history?.CanRedo == true && !IsExporting;
+
+        /// <summary>Shows or hides the advanced editing panel.</summary>
+        [RelayCommand]
+        private void ToggleAdvancedPanel() => IsAdvancedPanelOpen = !IsAdvancedPanelOpen;
+
+        /// <summary>Marks the first frame of a new segment, or of a part to cut out.</summary>
         [RelayCommand]
         private void SetMarkIn()
         {
@@ -392,57 +494,92 @@ namespace TrimC.Desktop.ViewModels
             }
 
             MarkIn = Position;
-            SetStatus($"Start set at {Timecode.Format(Position)}. Move to the end and press O.");
+            SetStatus(Strings.Format(Strings.StatusMarkIn, Timecode.Format(Position)));
         }
 
         /// <summary>
-        /// Closes a segment at the playhead. Without a pending in-point, the segment starts where the gap before the playhead begins.
+        /// Closes a segment at the playhead. While the selection is still the untouched whole video, the new segment
+        /// replaces it, because marking a start and an end is a way of choosing what to keep.
         /// </summary>
         [RelayCommand]
         private void SetMarkOut()
         {
-            if (_cutList is null)
+            if (_cutList is null || _history is null)
             {
                 return;
             }
 
             TimeSpan end = Position;
-            TimeSpan start = MarkIn ?? FindGapStart(_cutList, end);
+            bool replacesWholeVideo = IsWholeVideoSelected();
+            TimeSpan start = MarkIn ?? (replacesWholeVideo ? TimeSpan.Zero : FindGapStart(_cutList, end));
             if (end <= start)
             {
-                SetStatus("The end must be after the start.", isError: true);
+                SetStatus(Strings.StatusEndBeforeStart, isError: true);
                 return;
             }
 
-            TryEdit(() =>
+            Segment? added = null;
+            TryEdit(list =>
             {
-                Segment segment = _cutList.Add(new TimeRange(start, end));
-                MarkIn = null;
-                SelectSegment(segment.Id);
-                SetStatus($"Segment added: {Timecode.Format(start)} to {Timecode.Format(end)}.");
+                if (replacesWholeVideo)
+                {
+                    list.Clear();
+                }
+
+                added = list.Add(new TimeRange(start, end));
             });
+
+            if (added is not null)
+            {
+                MarkIn = null;
+                SelectSegmentById(added.Id, seek: false);
+                SetStatus(Strings.Format(Strings.StatusSegmentAdded, Timecode.Format(start), Timecode.Format(end)));
+            }
         }
 
-        /// <summary>
-        /// Removes the frames between the start mark and the playhead, keeping everything else.
-        /// </summary>
+        /// <summary>Moves the start of the selected segment to the playhead.</summary>
+        [RelayCommand(CanExecute = nameof(HasSelection))]
+        private void SetSelectedStart() => MoveSelectedEdge(SegmentEdge.Start);
+
+        /// <summary>Moves the end of the selected segment to the playhead.</summary>
+        [RelayCommand(CanExecute = nameof(HasSelection))]
+        private void SetSelectedEnd() => MoveSelectedEdge(SegmentEdge.End);
+
+        /// <summary>Splits the segment under the playhead in two.</summary>
+        [RelayCommand]
+        private void Split()
+        {
+            if (_cutList is null || _history is null)
+            {
+                return;
+            }
+
+            if (_cutList.FindAt(Position) is not Segment segment || segment.Range.Start == Position)
+            {
+                SetStatus(Strings.StatusSplitOutside, isError: true);
+                return;
+            }
+
+            TryEdit(list => list.Split(Position));
+        }
+
+        /// <summary>Removes the frames between the start mark and the playhead, keeping everything else.</summary>
         /// <remarks>
         /// This is the editing model used in film and broadcast work: mark two frames and cut out what lies between them.
         /// The removed range starts at the first marked frame and ends just before the frame under the playhead, so the
-        /// frame under the playhead is the first one that is kept. With no segments yet, the whole media is the starting
-        /// point.
+        /// frame under the playhead is the first one that is kept.
         /// </remarks>
         [RelayCommand]
         private void CutOut()
         {
-            if (_cutList is null)
+            if (_cutList is null || _history is null)
             {
                 return;
             }
 
             if (MarkIn is not TimeSpan mark)
             {
-                SetStatus("Press I on the first frame to remove, then move to the first frame to keep and press X.", isError: true);
+                SetStatus(Strings.StatusCutOutNoMark, isError: true);
                 return;
             }
 
@@ -450,70 +587,14 @@ namespace TrimC.Desktop.ViewModels
             TimeSpan end = mark < Position ? Position : mark;
             if (end <= start)
             {
-                SetStatus("Move the playhead away from the start mark to choose the frames to remove.", isError: true);
+                SetStatus(Strings.StatusCutOutEmpty, isError: true);
                 return;
             }
 
-            TryEdit(() =>
+            if (TryEdit(list => list.Exclude(new TimeRange(start, end))))
             {
-                _cutList.Exclude(new TimeRange(start, end));
                 MarkIn = null;
-                SetStatus($"Removed {Timecode.Format(start)} to {Timecode.Format(end)}. Export with exact frame precision to cut on these frames.");
-            });
-        }
-
-        /// <summary>Moves the start of the selected segment to the playhead.</summary>
-        [RelayCommand(CanExecute = nameof(HasSelection))]
-        private void SetSelectedStart()
-        {
-            if (_cutList is null || SelectedSegment is null)
-            {
-                return;
-            }
-
-            TimeRange range = SelectedSegment.Segment.Range;
-            if (Position >= range.End)
-            {
-                SetStatus("The start must be before the end of the segment.", isError: true);
-                return;
-            }
-
-            Guid id = SelectedSegment.Segment.Id;
-            TryEdit(() => _cutList.SetRange(id, new TimeRange(Position, range.End)));
-        }
-
-        /// <summary>Moves the end of the selected segment to the playhead.</summary>
-        [RelayCommand(CanExecute = nameof(HasSelection))]
-        private void SetSelectedEnd()
-        {
-            if (_cutList is null || SelectedSegment is null)
-            {
-                return;
-            }
-
-            TimeRange range = SelectedSegment.Segment.Range;
-            if (Position <= range.Start)
-            {
-                SetStatus("The end must be after the start of the segment.", isError: true);
-                return;
-            }
-
-            Guid id = SelectedSegment.Segment.Id;
-            TryEdit(() => _cutList.SetRange(id, new TimeRange(range.Start, Position)));
-        }
-
-        /// <summary>Splits the segment under the playhead in two.</summary>
-        [RelayCommand]
-        private void Split()
-        {
-            if (_cutList is null)
-            {
-                return;
-            }
-
-            if (_cutList.Split(Position) is null)
-            {
-                SetStatus("Place the playhead inside a segment to split it.", isError: true);
+                SetStatus(Strings.Format(Strings.StatusCutOutDone, Timecode.Format(start), Timecode.Format(end)));
             }
         }
 
@@ -521,108 +602,84 @@ namespace TrimC.Desktop.ViewModels
         [RelayCommand(CanExecute = nameof(HasSelection))]
         private void RemoveSelected()
         {
-            if (_cutList is not null && SelectedSegment is not null)
+            if (SelectedSegment is not null)
             {
-                _cutList.Remove(SelectedSegment.Segment.Id);
+                Guid id = SelectedSegment.Segment.Id;
+                TryEdit(list => list.Remove(id));
             }
         }
 
-        /// <summary>Removes every segment.</summary>
+        /// <summary>Selects the whole video again, discarding every segment.</summary>
         [RelayCommand]
-        private void ClearSegments()
+        private void ResetSegments()
         {
-            _cutList?.Clear();
+            if (_cutList is null)
+            {
+                return;
+            }
+
+            TimeSpan duration = _cutList.MediaDuration;
+            TryEdit(list =>
+            {
+                list.Clear();
+                list.Add(new TimeRange(TimeSpan.Zero, duration));
+            });
             MarkIn = null;
         }
 
         /// <summary>Replaces the segments with the parts between them, turning "parts to remove" into "parts to keep".</summary>
         [RelayCommand]
-        private void InvertSegments() => _cutList?.Invert();
+        private void InvertSegments() => TryEdit(list => list.Invert());
 
-        /// <summary>Chooses the folder that receives exported files.</summary>
-        /// <returns>A task that completes when the folder picker closes.</returns>
-        [RelayCommand]
-        private async Task ChooseOutputDirectoryAsync()
-        {
-            string? folder = await _dialogs.PickFolderAsync(OutputDirectory).ConfigureAwait(true);
-            if (folder is not null)
-            {
-                OutputDirectory = folder;
-                _isOutputDirectoryUserSelected = true;
-            }
-        }
-
-        /// <summary>
-        /// Exports the segments without re-encoding.
-        /// </summary>
+        /// <summary>Opens the export dialog and exports the segments with the confirmed settings.</summary>
         /// <param name="cancellationToken">Signaled by the generated cancel command.</param>
         /// <returns>A task that completes when the export finishes, fails or is canceled.</returns>
         [RelayCommand(CanExecute = nameof(CanExport), IncludeCancelCommand = true)]
         private async Task ExportAsync(CancellationToken cancellationToken)
         {
-            if (Media is null || Keyframes is null || _cutList is null || _toolchain.Executor is null || OutputDirectory is null)
+            if (Media is null || Keyframes is null || _cutList is null || _toolchain.Executor is null)
             {
+                return;
+            }
+
+            IReadOnlyList<Segment> segments = _cutList.Segments;
+            string sourceDirectory = Path.GetDirectoryName(Media.FilePath) ?? Environment.CurrentDirectory;
+            ExportDialogViewModel dialog = new(_settings.Current, segments.Count, _cutList.TotalDuration, sourceDirectory, _dialogs);
+            if (!await _exportDialog.ShowAsync(dialog).ConfigureAwait(true))
+            {
+                return;
+            }
+
+            AppSettings settings = dialog.ApplyTo(_settings.Current);
+            _settings.Save(settings);
+
+            if (settings.CutMode == CutMode.FrameAccurate && Media.PrimaryVideoStream is { CodecName: not ("h264" or "hevc") } video)
+            {
+                SetStatus(Strings.Format(Strings.StatusExactUnsupportedCodec, video.CodecName), isError: true);
                 return;
             }
 
             ExportOptions options = new()
             {
-                OutputDirectory = OutputDirectory,
-                Container = SelectedContainer.Value,
-                Mode = SelectedMode.Value,
-                CutMode = SelectedCutMode.Value,
-                SnapMode = SelectedSnapMode.Value,
+                OutputDirectory = dialog.EffectiveOutputDirectory,
+                Container = settings.Container,
+                Mode = settings.Mode,
+                CutMode = settings.CutMode,
+                SnapMode = settings.SnapMode,
             };
 
             ExportPlan plan;
             try
             {
-                plan = ExportPlanner.CreatePlan(Media, Keyframes, _cutList.Segments, options);
+                plan = ExportPlanner.CreatePlan(Media, Keyframes, segments, options);
             }
             catch (ArgumentException ex)
             {
-                SetStatus(ex.Message, isError: true);
+                SetStatus(Strings.Format(Strings.StatusCannotExport, ex.Message), isError: true);
                 return;
             }
 
-            IsExporting = true;
-            ExportPercent = 0;
-            LastExportedFile = null;
-            SetStatus("Exporting…");
-
-            // Progress<T> captures the UI synchronization context here, so reports arrive on the UI thread.
-            Progress<ExportProgress> progress = new(p =>
-            {
-                ExportPercent = p.Fraction * 100;
-                StatusMessage = string.Create(CultureInfo.InvariantCulture, $"Exporting step {p.StepNumber} of {p.StepCount}… {p.Fraction:P0}");
-            });
-
-            try
-            {
-                await _toolchain.Executor.ExecuteAsync(plan, progress, cancellationToken).ConfigureAwait(true);
-
-                LastExportedFile = plan.OutputFiles[0];
-                string written = plan.OutputFiles.Count == 1
-                    ? $"Exported {Path.GetFileName(plan.OutputFiles[0])}"
-                    : $"Exported {plan.OutputFiles.Count} files to {OutputDirectory}";
-                SetStatus(options.CutMode == CutMode.FrameAccurate
-                    ? $"{written} on the exact frames. Only the frames at the cut points were re-encoded."
-                    : $"{written} without re-encoding.");
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                SetStatus("Export canceled. Partially written files were removed.");
-            }
-            catch (Exception ex) when (ex is FFmpegException or IOException or UnauthorizedAccessException)
-            {
-                LogExportFailed(ex);
-                SetStatus(DescribeFailure("Export failed", ex), isError: true);
-            }
-            finally
-            {
-                IsExporting = false;
-                ExportPercent = 0;
-            }
+            await RunExportAsync(plan, options, settings.OpenFolderWhenDone, cancellationToken).ConfigureAwait(true);
         }
 
         private bool CanExport() => Media is not null && Keyframes is not null && _cutList is { Count: > 0 } && !IsExporting;
@@ -639,16 +696,93 @@ namespace TrimC.Desktop.ViewModels
 
         private bool CanRevealLastExport() => LastExportedFile is not null;
 
+        /// <summary>Opens the folder that holds the log files.</summary>
+        [RelayCommand]
+        private void OpenLogFolder()
+        {
+            Directory.CreateDirectory(FileLoggerProvider.DefaultDirectory);
+            LogOpeningLogFolder(FileLoggerProvider.DefaultDirectory);
+            FileManager.OpenFolder(FileLoggerProvider.DefaultDirectory);
+        }
+
+        /// <summary>Stores the interface language, which takes effect at the next start.</summary>
+        /// <param name="language">A culture name such as <c>en</c> or <c>tr</c>, or an empty string to follow Windows.</param>
+        [RelayCommand]
+        private void SetLanguage(string? language)
+        {
+            language ??= string.Empty;
+            if (language == _settings.Current.Language)
+            {
+                return;
+            }
+
+            _settings.Save(_settings.Current with { Language = language });
+            OnPropertyChanged(nameof(IsLanguageSystem));
+            OnPropertyChanged(nameof(IsLanguageEnglish));
+            OnPropertyChanged(nameof(IsLanguageTurkish));
+            SetStatus(Strings.StatusLanguageRestart);
+        }
+
         private bool HasSelection() => SelectedSegment is not null;
 
         partial void OnSelectedSegmentChanged(SegmentViewModel? value)
         {
             // Picking a segment in the list previews its first frame, which is what the user is about to judge. Selections
-            // made by the view model itself, such as highlighting a segment that was just closed with O, keep the playhead
-            // where the user left it.
+            // made by the view model itself keep the playhead where the user left it.
             if (!_isSelectingProgrammatically && value is not null && (Position < value.Segment.Range.Start || Position >= value.Segment.Range.End))
             {
                 SeekTo(value.Segment.Range.Start, exact: true);
+            }
+        }
+
+        partial void OnIsAdvancedPanelOpenChanged(bool value) =>
+            _settings.Save(_settings.Current with { IsAdvancedPanelOpen = value });
+
+        partial void OnIsExportingChanged(bool value)
+        {
+            UndoCommand.NotifyCanExecuteChanged();
+            RedoCommand.NotifyCanExecuteChanged();
+        }
+
+        private async Task RunExportAsync(ExportPlan plan, ExportOptions options, bool openFolderWhenDone, CancellationToken cancellationToken)
+        {
+            IsExporting = true;
+            ExportPercent = 0;
+            LastExportedFile = null;
+            SetStatus(Strings.Format(Strings.StatusExporting, 0.ToString("P0", CultureInfo.CurrentCulture)));
+
+            // Progress<T> captures the UI synchronization context here, so reports arrive on the UI thread.
+            Progress<ExportProgress> progress = new(p =>
+            {
+                ExportPercent = p.Fraction * 100;
+                StatusMessage = Strings.Format(Strings.StatusExporting, p.Fraction.ToString("P0", CultureInfo.CurrentCulture));
+            });
+
+            try
+            {
+                await _toolchain.Executor!.ExecuteAsync(plan, progress, cancellationToken).ConfigureAwait(true);
+
+                LastExportedFile = plan.OutputFiles[0];
+                SetStatus(DescribeExport(plan, options));
+
+                if (openFolderWhenDone)
+                {
+                    FileManager.Reveal(LastExportedFile);
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                SetStatus(Strings.StatusExportCanceled);
+            }
+            catch (Exception ex) when (ex is FFmpegException or IOException or UnauthorizedAccessException)
+            {
+                LogExportFailed(ex);
+                SetStatus(Strings.Format(Strings.StatusExportFailed, DescribeFailure(ex)), isError: true);
+            }
+            finally
+            {
+                IsExporting = false;
+                ExportPercent = 0;
             }
         }
 
@@ -659,8 +793,18 @@ namespace TrimC.Desktop.ViewModels
                 _cutList.Changed -= OnCutListChanged;
             }
 
+            if (_history is not null)
+            {
+                _history.Changed -= OnHistoryChanged;
+            }
+
+            // A new file starts with the whole media selected, so trimming is a matter of dragging the two handles.
             _cutList = new CutList(media.Duration);
+            _cutList.Add(new TimeRange(TimeSpan.Zero, media.Duration));
             _cutList.Changed += OnCutListChanged;
+            _history = new EditHistory(_cutList);
+            _history.Changed += OnHistoryChanged;
+            _trimSnapshot = null;
 
             Media = media;
             Keyframes = null;
@@ -670,12 +814,14 @@ namespace TrimC.Desktop.ViewModels
             LastExportedFile = null;
             MediaSummary = DescribeMedia(media);
 
-            if (!_isOutputDirectoryUserSelected)
-            {
-                OutputDirectory = Path.GetDirectoryName(media.FilePath);
-            }
-
             OnCutListChanged(_cutList, EventArgs.Empty);
+            OnHistoryChanged(_history, EventArgs.Empty);
+        }
+
+        private void OnHistoryChanged(object? sender, EventArgs e)
+        {
+            UndoCommand.NotifyCanExecuteChanged();
+            RedoCommand.NotifyCanExecuteChanged();
         }
 
         private void OnCutListChanged(object? sender, EventArgs e)
@@ -689,25 +835,34 @@ namespace TrimC.Desktop.ViewModels
             Guid? selectedId = SelectedSegment?.Segment.Id;
 
             // Label edits change no geometry; rebuilding the list in that case would recreate the text box being typed in.
-            if (!HasSameGeometry(segments))
+            if (!HasSameIdentities(segments))
             {
                 Segments.Clear();
                 for (int i = 0; i < segments.Count; i++)
                 {
                     Segments.Add(new SegmentViewModel(segments[i], i + 1, RenameSegment));
                 }
-
-                SelectSegment(selectedId);
+            }
+            else
+            {
+                for (int i = 0; i < segments.Count; i++)
+                {
+                    if (Segments[i].Segment.Range != segments[i].Range)
+                    {
+                        Segments[i] = new SegmentViewModel(segments[i], i + 1, RenameSegment);
+                    }
+                }
             }
 
+            // A single segment is always the one the handles act on; otherwise the previous selection is kept if it survived.
+            SelectSegmentById(segments.Count == 1 ? segments[0].Id : selectedId, seek: false);
+
             TimelineSegments = segments;
-            SelectionSummary = segments.Count == 0
-                ? "No segments. Press I at the start and O at the end of a part to keep."
-                : $"{segments.Count} segment(s), {Timecode.Format(_cutList.TotalDuration)} total";
+            TrimSummary = DescribeSelection(segments, _cutList.TotalDuration);
             ExportCommand.NotifyCanExecuteChanged();
         }
 
-        private bool HasSameGeometry(IReadOnlyList<Segment> segments)
+        private bool HasSameIdentities(IReadOnlyList<Segment> segments)
         {
             if (segments.Count != Segments.Count)
             {
@@ -716,7 +871,7 @@ namespace TrimC.Desktop.ViewModels
 
             for (int i = 0; i < segments.Count; i++)
             {
-                if (segments[i].Id != Segments[i].Segment.Id || segments[i].Range != Segments[i].Segment.Range)
+                if (segments[i].Id != Segments[i].Segment.Id)
                 {
                     return false;
                 }
@@ -725,9 +880,10 @@ namespace TrimC.Desktop.ViewModels
             return true;
         }
 
+        // Labels are not recorded for undo: every keystroke would otherwise become a separate step.
         private void RenameSegment(Guid id, string? label) => _cutList?.SetLabel(id, label);
 
-        private void SelectSegment(Guid? id)
+        private void SelectSegmentById(Guid? id, bool seek)
         {
             SegmentViewModel? match = null;
             foreach (SegmentViewModel segment in Segments)
@@ -739,7 +895,7 @@ namespace TrimC.Desktop.ViewModels
                 }
             }
 
-            _isSelectingProgrammatically = true;
+            _isSelectingProgrammatically = !seek;
             try
             {
                 SelectedSegment = match;
@@ -747,6 +903,46 @@ namespace TrimC.Desktop.ViewModels
             finally
             {
                 _isSelectingProgrammatically = false;
+            }
+        }
+
+        private void MoveSelectedEdge(SegmentEdge edge)
+        {
+            if (SelectedSegment is null)
+            {
+                return;
+            }
+
+            Guid id = SelectedSegment.Segment.Id;
+            TimeSpan position = Position;
+            TimeSpan minimum = FrameDuration();
+            TryEdit(list => list.MoveEdge(id, edge, position, minimum));
+        }
+
+        private bool IsWholeVideoSelected() =>
+            _cutList is { Count: 1 } list && list.Segments[0].Range == new TimeRange(TimeSpan.Zero, list.MediaDuration);
+
+        private bool TryEdit(Action<CutList> edit)
+        {
+            if (_history is null)
+            {
+                return false;
+            }
+
+            try
+            {
+                _history.Execute(edit);
+                return true;
+            }
+            catch (InvalidOperationException)
+            {
+                SetStatus(Strings.StatusSegmentOverlaps, isError: true);
+                return false;
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                SetStatus(ex.Message, isError: true);
+                return false;
             }
         }
 
@@ -772,22 +968,19 @@ namespace TrimC.Desktop.ViewModels
             }
 
             // Without preview the playhead still moves by one nominal frame so that cut points can be set precisely.
-            double frameRate = Media.PrimaryVideoStream?.FrameRate ?? 30;
-            TimeSpan frame = TimeSpan.FromSeconds(1 / frameRate);
-            TimeSpan target = backward ? Position - frame : Position + frame;
+            TimeSpan target = backward ? Position - FrameDuration() : Position + FrameDuration();
             Position = target < TimeSpan.Zero ? TimeSpan.Zero : target > Duration ? Duration : target;
         }
 
-        private void TryEdit(Action edit)
+        private TimeSpan FrameDuration() => TimeSpan.FromSeconds(1 / FrameRate());
+
+        private double FrameRate() => Media?.PrimaryVideoStream?.FrameRate ?? 30;
+
+        private TimeSpan SnapToFrame(TimeSpan position)
         {
-            try
-            {
-                edit();
-            }
-            catch (Exception ex) when (ex is InvalidOperationException or ArgumentOutOfRangeException)
-            {
-                SetStatus(ex.Message, isError: true);
-            }
+            double frames = Math.Round(position.TotalSeconds * FrameRate());
+            TimeSpan snapped = TimeSpan.FromSeconds(frames / FrameRate());
+            return snapped > Duration ? Duration : snapped;
         }
 
         private void OnPlayerStateChanged(object? sender, EventArgs e) => _dispatcher.Post(SyncFromPlayer);
@@ -838,6 +1031,25 @@ namespace TrimC.Desktop.ViewModels
             return start;
         }
 
+        private static string DescribeSelection(IReadOnlyList<Segment> segments, TimeSpan total)
+        {
+            if (segments.Count == 1)
+            {
+                TimeRange range = segments[0].Range;
+                return Strings.Format(Strings.TrimSummary, Timecode.Format(range.Start), Timecode.Format(range.End), Timecode.Format(range.Duration));
+            }
+
+            return Strings.Format(Strings.TrimSummaryMultiple, segments.Count, Timecode.Format(total));
+        }
+
+        private static string DescribeExport(ExportPlan plan, ExportOptions options)
+        {
+            bool exact = options.CutMode == CutMode.FrameAccurate;
+            return plan.OutputFiles.Count == 1
+                ? Strings.Format(exact ? Strings.StatusExportedOneExact : Strings.StatusExportedOne, Path.GetFileName(plan.OutputFiles[0]))
+                : Strings.Format(exact ? Strings.StatusExportedManyExact : Strings.StatusExportedMany, plan.OutputFiles.Count, options.OutputDirectory);
+        }
+
         private static string DescribeMedia(MediaInfo media)
         {
             StringBuilder summary = new();
@@ -873,21 +1085,19 @@ namespace TrimC.Desktop.ViewModels
         {
             if (keyframes.Count < 2)
             {
-                return "Ready.";
+                return Strings.StatusReadyAudio;
             }
 
             double averageGop = duration.TotalSeconds / keyframes.Count;
-            return string.Create(CultureInfo.InvariantCulture, $"Ready. {keyframes.Count} keyframes, one every {averageGop:0.##} s on average.");
+            return Strings.Format(Strings.StatusReady, keyframes.Count, averageGop.ToString("0.##", CultureInfo.CurrentCulture));
         }
 
-        private static string DescribeFailure(string summary, Exception exception)
+        private static string DescribeFailure(Exception exception)
         {
             // ffmpeg's own diagnostic is more precise than any message the application could compose, so its last line is shown.
-            string? detail = exception is FFmpegException { StandardError: { Length: > 0 } standardError }
+            return exception is FFmpegException { StandardError: { Length: > 0 } standardError }
                 ? standardError.Trim().Split('\n')[^1].Trim()
                 : exception.Message;
-
-            return $"{summary}: {detail}";
         }
 
         [LoggerMessage(Level = LogLevel.Error, Message = "Could not open {FilePath}")]
@@ -895,5 +1105,11 @@ namespace TrimC.Desktop.ViewModels
 
         [LoggerMessage(Level = LogLevel.Error, Message = "Export failed")]
         private partial void LogExportFailed(Exception exception);
+
+        [LoggerMessage(Level = LogLevel.Information, Message = "Opening the log folder {Folder}")]
+        private partial void LogOpeningLogFolder(string folder);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Could not update the Open with registration")]
+        private partial void LogShellIntegrationFailed(Exception exception);
     }
 }

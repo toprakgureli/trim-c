@@ -39,5 +39,19 @@ namespace TrimC.Desktop.Services
             startInfo.UseShellExecute = false;
             using Process? process = Process.Start(startInfo);
         }
+
+        /// <summary>
+        /// Opens a folder in the platform file manager.
+        /// </summary>
+        /// <param name="folderPath">The folder to open.</param>
+        public static void OpenFolder(string folderPath)
+        {
+            ArgumentNullException.ThrowIfNull(folderPath);
+
+            string program = OperatingSystem.IsWindows() ? "explorer.exe" : OperatingSystem.IsMacOS() ? "open" : "xdg-open";
+            ProcessStartInfo startInfo = new(program) { UseShellExecute = false };
+            startInfo.ArgumentList.Add(folderPath);
+            using Process? process = Process.Start(startInfo);
+        }
     }
 }

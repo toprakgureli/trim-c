@@ -1,0 +1,64 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:res="using:TrimC.Desktop.Resources"
+        xmlns:vm="using:TrimC.Desktop.ViewModels"
+        x:Class="TrimC.Desktop.Views.ExportDialog"
+        x:DataType="vm:ExportDialogViewModel"
+        Title="{x:Static res:Strings.ExportDialogTitle}"
+        Width="480"
+        SizeToContent="Height"
+        CanResize="False"
+        CanMinimize="False"
+        CanMaximize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+
+  <Window.Styles>
+    <Style Selector="TextBlock.label">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Opacity" Value="0.75" />
+      <Setter Property="Margin" Value="0,10,0,4" />
+    </Style>
+    <Style Selector="TextBlock.hint">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Opacity" Value="0.7" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="Margin" Value="0,6,0,0" />
+    </Style>
+  </Window.Styles>
+
+  <StackPanel Margin="24,20,24,20">
+    <TextBlock Text="{Binding Summary}" FontSize="15" FontWeight="SemiBold" />
+
+    <TextBlock Classes="label" Text="{x:Static res:Strings.PrecisionLabel}" />
+    <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding CutModeOptions}" SelectedItem="{Binding SelectedCutMode}" />
+    <TextBlock Classes="hint" Text="{Binding PrecisionHint}" />
+
+    <StackPanel IsVisible="{Binding IsKeyframeMode}">
+      <TextBlock Classes="label" Text="{x:Static res:Strings.SnapLabel}" />
+      <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding SnapModeOptions}" SelectedItem="{Binding SelectedSnapMode}" />
+    </StackPanel>
+
+    <StackPanel IsVisible="{Binding CanMerge}">
+      <TextBlock Classes="label" Text="{x:Static res:Strings.SegmentsModeLabel}" />
+      <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding ModeOptions}" SelectedItem="{Binding SelectedMode}" />
+    </StackPanel>
+
+    <TextBlock Classes="label" Text="{x:Static res:Strings.ContainerLabel}" />
+    <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding ContainerOptions}" SelectedItem="{Binding SelectedContainer}" />
+
+    <TextBlock Classes="label" Text="{x:Static res:Strings.OutputFolderLabel}" />
+    <TextBlock Text="{Binding OutputDirectoryText}" TextWrapping="Wrap" />
+    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
+      <Button Content="{x:Static res:Strings.ChangeFolderButton}" Command="{Binding ChooseFolderCommand}" />
+      <Button Content="{x:Static res:Strings.UseSourceFolderButton}" Command="{Binding UseSourceFolderCommand}" IsVisible="{Binding HasCustomOutputDirectory}" />
+    </StackPanel>
+
+    <CheckBox Margin="0,14,0,0" Content="{x:Static res:Strings.OpenFolderWhenDone}" IsChecked="{Binding OpenFolderWhenDone}" />
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,22,0,0">
+      <Button Content="{x:Static res:Strings.CancelButton}" IsCancel="True" Click="OnCancel" MinWidth="96" HorizontalContentAlignment="Center" />
+      <Button Content="{x:Static res:Strings.ExportConfirmButton}" IsDefault="True" Classes="accent" Click="OnConfirm" MinWidth="96" HorizontalContentAlignment="Center" />
+    </StackPanel>
+  </StackPanel>
+</Window>

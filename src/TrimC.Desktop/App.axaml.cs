@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE in the repository root for details.
 
 using System;
+using System.Globalization;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -13,6 +14,7 @@ using Microsoft.Extensions.Logging;
 using TrimC.Desktop.Diagnostics;
 using TrimC.Desktop.Playback;
 using TrimC.Desktop.Services;
+using TrimC.Desktop.Settings;
 using TrimC.Desktop.ViewModels;
 using TrimC.Desktop.Views;
 
@@ -48,7 +50,12 @@ namespace TrimC.Desktop
         {
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
-                _services = ConfigureServices();
+                // The language must be in place before any localized text is read, which happens as soon as the view
+                // model and the windows are created.
+                SettingsStore settings = new();
+                ApplyLanguage(settings.Current.Language);
+
+                _services = ConfigureServices(settings);
                 _logger = _services.GetRequiredService<ILogger<App>>();
                 InstallExceptionHandlers();
 
@@ -63,12 +70,39 @@ namespace TrimC.Desktop
                 }
 
                 LogStarted(typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown", _logFilePath ?? "none");
+
+                // The "Open with" entries record the executable path, so they are refreshed on every start in case the
+                // portable folder was moved. Development runs can opt out to keep the registry untouched.
+                if (Environment.GetEnvironmentVariable("TRIMC_SKIP_SHELL_INTEGRATION") is null)
+                {
+                    MainWindowViewModel viewModel = _viewModel;
+                    _ = Task.Run(() => viewModel.ApplyShellIntegration(reportResult: false));
+                }
             }
 
             base.OnFrameworkInitializationCompleted();
         }
 
-        private ServiceProvider ConfigureServices()
+        private static void ApplyLanguage(string language)
+        {
+            if (language.Length == 0)
+            {
+                return;
+            }
+
+            try
+            {
+                CultureInfo culture = CultureInfo.GetCultureInfo(language);
+                CultureInfo.DefaultThreadCurrentUICulture = culture;
+                CultureInfo.CurrentUICulture = culture;
+            }
+            catch (CultureNotFoundException)
+            {
+                // An unknown language in the settings file falls back to the Windows language.
+            }
+        }
+
+        private ServiceProvider ConfigureServices(SettingsStore settings)
         {
             ServiceCollection services = new();
 
@@ -82,7 +116,10 @@ namespace TrimC.Desktop
                 .AddProvider(fileLogger));
 
             services.AddSingleton<IDispatcher>(Dispatcher.UIThread);
+            services.AddSingleton(settings);
             services.AddSingleton<IFileDialogService>(_ => new StorageFileDialogService(() => _mainWindow));
+            services.AddSingleton<IExportDialogService>(_ => new ExportDialogService(() => _mainWindow));
+            services.AddSingleton<IShellIntegration, WindowsShellIntegration>();
             services.AddSingleton<IVideoPlayer, MpvPlayer>();
             services.AddSingleton<MediaToolchain>();
             services.AddSingleton<MainWindowViewModel>();

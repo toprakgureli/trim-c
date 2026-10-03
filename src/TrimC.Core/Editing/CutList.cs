@@ -323,6 +323,92 @@ namespace TrimC.Editing
             OnChanged();
         }
 
+        /// <summary>
+        /// Moves one boundary of a segment, keeping every invariant of the list intact.
+        /// </summary>
+        /// <param name="id">The identifier of the segment to change.</param>
+        /// <param name="edge">The boundary to move.</param>
+        /// <param name="position">The requested position of the boundary.</param>
+        /// <param name="minimumDuration">The shortest length the segment may be given, typically one frame.</param>
+        /// <returns>The updated segment.</returns>
+        /// <exception cref="KeyNotFoundException">No segment has the identifier <paramref name="id"/>.</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="minimumDuration"/> is negative.</exception>
+        /// <remarks>
+        /// Unlike <see cref="SetRange"/>, this method never fails for an out-of-range position. The boundary is clamped
+        /// to the media, to the neighbouring segments and to <paramref name="minimumDuration"/>, which is what a trim
+        /// handle dragged by the pointer needs: the handle stops at an obstacle instead of rejecting the whole gesture.
+        /// </remarks>
+        public Segment MoveEdge(Guid id, SegmentEdge edge, TimeSpan position, TimeSpan minimumDuration)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(minimumDuration, TimeSpan.Zero);
+
+            int index = IndexOf(id);
+            if (index < 0)
+            {
+                throw new KeyNotFoundException($"No segment with id '{id}' exists.");
+            }
+
+            TimeRange range = _segments[index].Range;
+            TimeSpan lowerBound = index > 0 ? _segments[index - 1].Range.End : TimeSpan.Zero;
+            TimeSpan upperBound = index < _segments.Count - 1 ? _segments[index + 1].Range.Start : MediaDuration;
+
+            // The minimum length never overrides a neighbour or the media bounds: a segment that is already shorter than
+            // the minimum can still be moved within the space that is actually free, but never into another segment.
+            // A boundary also never reaches the opposite one, because a range must not be empty.
+            TimeSpan length = Max(minimumDuration, TimeSpan.FromTicks(1));
+            TimeRange updatedRange;
+            if (edge == SegmentEdge.Start)
+            {
+                TimeSpan latestStart = Max(range.End - length, lowerBound);
+                updatedRange = new TimeRange(Clamp(position, lowerBound, latestStart), range.End);
+            }
+            else
+            {
+                TimeSpan earliestEnd = Min(range.Start + length, upperBound);
+                updatedRange = new TimeRange(range.Start, Clamp(position, earliestEnd, upperBound));
+            }
+
+            if (updatedRange == range)
+            {
+                return _segments[index];
+            }
+
+            Segment updated = _segments[index] with { Range = updatedRange };
+            _segments[index] = updated;
+            OnChanged();
+            return updated;
+        }
+
+        /// <summary>
+        /// Replaces every segment with a previously captured state, as used by undo and redo.
+        /// </summary>
+        /// <param name="segments">The segments to restore, in ascending start order.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="segments"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentException">The segments are unsorted, overlap or extend past <see cref="MediaDuration"/>.</exception>
+        public void Restore(IReadOnlyList<Segment> segments)
+        {
+            ArgumentNullException.ThrowIfNull(segments);
+
+            for (int i = 0; i < segments.Count; i++)
+            {
+                if (segments[i].Range.End > MediaDuration || (i > 0 && segments[i].Range.Start < segments[i - 1].Range.End))
+                {
+                    throw new ArgumentException("The segments must be sorted, must not overlap and must lie within the media.", nameof(segments));
+                }
+            }
+
+            _segments.Clear();
+            _segments.AddRange(segments);
+            OnChanged();
+        }
+
+        private static TimeSpan Clamp(TimeSpan value, TimeSpan minimum, TimeSpan maximum) =>
+            value < minimum ? minimum : value > maximum ? maximum : value;
+
+        private static TimeSpan Min(TimeSpan a, TimeSpan b) => a < b ? a : b;
+
+        private static TimeSpan Max(TimeSpan a, TimeSpan b) => a > b ? a : b;
+
         private int IndexOf(Guid id) => _segments.FindIndex(s => s.Id == id);
 
         private int FindInsertionIndex(TimeSpan start)

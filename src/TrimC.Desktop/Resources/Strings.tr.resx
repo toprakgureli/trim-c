@@ -1,0 +1,322 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="OpenButton" xml:space="preserve">
+    <value>Aç…</value>
+  </data>
+  <data name="OpenTooltip" xml:space="preserve">
+    <value>Video aç (Ctrl+O)</value>
+  </data>
+  <data name="ExportButton" xml:space="preserve">
+    <value>Dışa aktar…</value>
+  </data>
+  <data name="ExportTooltip" xml:space="preserve">
+    <value>Dışa aktarma ayarlarını seç ve seçimi kaydet (Ctrl+E)</value>
+  </data>
+  <data name="CancelExportButton" xml:space="preserve">
+    <value>İptal</value>
+  </data>
+  <data name="UndoTooltip" xml:space="preserve">
+    <value>Geri al (Ctrl+Z)</value>
+  </data>
+  <data name="RedoTooltip" xml:space="preserve">
+    <value>Yinele (Ctrl+Y)</value>
+  </data>
+  <data name="AdvancedButton" xml:space="preserve">
+    <value>Gelişmiş</value>
+  </data>
+  <data name="AdvancedTooltip" xml:space="preserve">
+    <value>Segment listesini ve elle düzenleme araçlarını göster</value>
+  </data>
+  <data name="MoreTooltip" xml:space="preserve">
+    <value>Diğer seçenekler</value>
+  </data>
+  <data name="MenuLanguage" xml:space="preserve">
+    <value>Dil</value>
+  </data>
+  <data name="LanguageSystem" xml:space="preserve">
+    <value>Sistem varsayılanı</value>
+  </data>
+  <data name="LanguageEnglish" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="LanguageTurkish" xml:space="preserve">
+    <value>Türkçe</value>
+  </data>
+  <data name="MenuOpenWith" xml:space="preserve">
+    <value>Video dosyalarında “Birlikte aç” menüsünde göster</value>
+  </data>
+  <data name="MenuOpenLogs" xml:space="preserve">
+    <value>Günlük klasörünü aç</value>
+  </data>
+  <data name="DropHint" xml:space="preserve">
+    <value>Bir videoyu buraya bırak ya da Ctrl+O’ya bas</value>
+  </data>
+  <data name="TrimSummary" xml:space="preserve">
+    <value>Saklanacak bölüm: {0} – {1}  ({2})</value>
+  </data>
+  <data name="TrimSummaryMultiple" xml:space="preserve">
+    <value>{0} segment, toplam {1}</value>
+  </data>
+  <data name="TrimHint" xml:space="preserve">
+    <value>Saklamak istediğin bölümü seçmek için zaman çizelgesindeki sarı tutamaçları sürükle.</value>
+  </data>
+  <data name="PreviousKeyframeTooltip" xml:space="preserve">
+    <value>Önceki keyframe (Ctrl+Sol ok)</value>
+  </data>
+  <data name="PreviousFrameTooltip" xml:space="preserve">
+    <value>Önceki kare (Sol ok)</value>
+  </data>
+  <data name="PlayPauseTooltip" xml:space="preserve">
+    <value>Oynat ya da duraklat (Boşluk)</value>
+  </data>
+  <data name="NextFrameTooltip" xml:space="preserve">
+    <value>Sonraki kare (Sağ ok)</value>
+  </data>
+  <data name="NextKeyframeTooltip" xml:space="preserve">
+    <value>Sonraki keyframe (Ctrl+Sağ ok)</value>
+  </data>
+  <data name="SegmentsHeader" xml:space="preserve">
+    <value>Segmentler</value>
+  </data>
+  <data name="SegmentLabelPlaceholder" xml:space="preserve">
+    <value>Etiket (dosya adında kullanılır)</value>
+  </data>
+  <data name="RemoveButton" xml:space="preserve">
+    <value>Sil</value>
+  </data>
+  <data name="RemoveTooltip" xml:space="preserve">
+    <value>Seçili segmenti sil (Delete)</value>
+  </data>
+  <data name="InvertButton" xml:space="preserve">
+    <value>Tersine çevir</value>
+  </data>
+  <data name="InvertTooltip" xml:space="preserve">
+    <value>Mevcut segmentler dışındaki her şeyi sakla</value>
+  </data>
+  <data name="ResetButton" xml:space="preserve">
+    <value>Sıfırla</value>
+  </data>
+  <data name="ResetTooltip" xml:space="preserve">
+    <value>Videonun tamamını yeniden seç</value>
+  </data>
+  <data name="ManualToolsHeader" xml:space="preserve">
+    <value>Elle düzenleme</value>
+  </data>
+  <data name="SetStartButton" xml:space="preserve">
+    <value>Başlangıç [I]</value>
+  </data>
+  <data name="SetStartTooltip" xml:space="preserve">
+    <value>Yeni bir segmentin ya da çıkarılacak bölümün ilk karesini işaretle</value>
+  </data>
+  <data name="SetEndButton" xml:space="preserve">
+    <value>Bitiş [O]</value>
+  </data>
+  <data name="SetEndTooltip" xml:space="preserve">
+    <value>Segmenti oynatma imlecinin olduğu yerde kapat</value>
+  </data>
+  <data name="SplitButton" xml:space="preserve">
+    <value>Böl [S]</value>
+  </data>
+  <data name="SplitTooltip" xml:space="preserve">
+    <value>İmlecin altındaki segmenti ikiye böl</value>
+  </data>
+  <data name="CutOutButton" xml:space="preserve">
+    <value>Aradakini çıkar [X]</value>
+  </data>
+  <data name="CutOutTooltip" xml:space="preserve">
+    <value>Başlangıç işaretiyle oynatma imleci arasındaki kareleri çıkar</value>
+  </data>
+  <data name="ManualToolsHint" xml:space="preserve">
+    <value>Shift+I ve Shift+O, seçili segmentin başını ve sonunu oynatma imlecine taşır.</value>
+  </data>
+  <data name="ShowInFolderButton" xml:space="preserve">
+    <value>Klasörde göster</value>
+  </data>
+  <data name="ExportDialogTitle" xml:space="preserve">
+    <value>Dışa aktar</value>
+  </data>
+  <data name="ExportSummary" xml:space="preserve">
+    <value>{0} segment, toplam {1}</value>
+  </data>
+  <data name="ContainerLabel" xml:space="preserve">
+    <value>Kapsayıcı</value>
+  </data>
+  <data name="SegmentsModeLabel" xml:space="preserve">
+    <value>Segmentler</value>
+  </data>
+  <data name="PrecisionLabel" xml:space="preserve">
+    <value>Kesim hassasiyeti</value>
+  </data>
+  <data name="SnapLabel" xml:space="preserve">
+    <value>Kesimin başladığı nokta</value>
+  </data>
+  <data name="OutputFolderLabel" xml:space="preserve">
+    <value>Çıktı klasörü</value>
+  </data>
+  <data name="NextToSource" xml:space="preserve">
+    <value>Kaynak dosyanın yanında</value>
+  </data>
+  <data name="ChangeFolderButton" xml:space="preserve">
+    <value>Değiştir…</value>
+  </data>
+  <data name="UseSourceFolderButton" xml:space="preserve">
+    <value>Kaynak klasörünü kullan</value>
+  </data>
+  <data name="OpenFolderWhenDone" xml:space="preserve">
+    <value>Bitince klasörü aç</value>
+  </data>
+  <data name="ExportConfirmButton" xml:space="preserve">
+    <value>Dışa aktar</value>
+  </data>
+  <data name="CancelButton" xml:space="preserve">
+    <value>İptal</value>
+  </data>
+  <data name="PrecisionKeyframeHint" xml:space="preserve">
+    <value>Videoyu olduğu gibi kopyalar ve saniyeler içinde biter. Kesim, en fazla bir keyframe aralığı kadar erken başlayabilir.</value>
+  </data>
+  <data name="PrecisionExactHint" xml:space="preserve">
+    <value>Tam olarak seçilen karelerde keser. Yalnızca kesim noktalarının çevresindeki kareler, kayba yakın kalitede yeniden kodlanır.</value>
+  </data>
+  <data name="ContainerSameAsSource" xml:space="preserve">
+    <value>Kaynakla aynı</value>
+  </data>
+  <data name="ModeSeparate" xml:space="preserve">
+    <value>Her segment ayrı dosya</value>
+  </data>
+  <data name="ModeMerge" xml:space="preserve">
+    <value>Tek dosyada birleştir</value>
+  </data>
+  <data name="CutModeKeyframe" xml:space="preserve">
+    <value>Keyframe (kayıpsız, anında)</value>
+  </data>
+  <data name="CutModeExact" xml:space="preserve">
+    <value>Tam kare</value>
+  </data>
+  <data name="SnapPrevious" xml:space="preserve">
+    <value>Önceki keyframe (hiçbir şey kaybolmaz)</value>
+  </data>
+  <data name="SnapNext" xml:space="preserve">
+    <value>Sonraki keyframe (fazladan kare olmaz)</value>
+  </data>
+  <data name="SnapNearest" xml:space="preserve">
+    <value>En yakın keyframe</value>
+  </data>
+  <data name="StatusFFmpegMissing" xml:space="preserve">
+    <value>FFmpeg bulunamadı. ffmpeg ve ffprobe dosyalarını trim-c.exe’nin yanındaki ffmpeg klasörüne koy.</value>
+  </data>
+  <data name="StatusWelcome" xml:space="preserve">
+    <value>Bir video aç ya da pencereye sürükleyip bırak.</value>
+  </data>
+  <data name="StatusReading" xml:space="preserve">
+    <value>{0} okunuyor…</value>
+  </data>
+  <data name="StatusIndexing" xml:space="preserve">
+    <value>Keyframe’ler okunuyor…</value>
+  </data>
+  <data name="StatusReadyAudio" xml:space="preserve">
+    <value>Hazır. Yalnızca ses içeren dosyalar her noktadan kesilebilir.</value>
+  </data>
+  <data name="StatusReady" xml:space="preserve">
+    <value>Hazır. {0} keyframe, ortalama {1} saniyede bir.</value>
+  </data>
+  <data name="StatusOpenFailed" xml:space="preserve">
+    <value>{0} açılamadı: {1}</value>
+  </data>
+  <data name="StatusMarkIn" xml:space="preserve">
+    <value>Başlangıç {0} olarak işaretlendi. Bitişe gidip O’ya, aradaki bölümü çıkarmak için X’e bas.</value>
+  </data>
+  <data name="StatusEndBeforeStart" xml:space="preserve">
+    <value>Bitiş, başlangıçtan sonra olmalı.</value>
+  </data>
+  <data name="StatusSegmentAdded" xml:space="preserve">
+    <value>Segment eklendi: {0} – {1}.</value>
+  </data>
+  <data name="StatusSegmentOverlaps" xml:space="preserve">
+    <value>Yeni segment mevcut bir segmentle çakışıyor. Önce mevcut segmenti sil ya da kırp.</value>
+  </data>
+  <data name="StatusSplitOutside" xml:space="preserve">
+    <value>Bölmek için oynatma imlecini bir segmentin içine getir.</value>
+  </data>
+  <data name="StatusCutOutNoMark" xml:space="preserve">
+    <value>Çıkarılacak ilk karede I’ya bas, sonra saklanacak ilk kareye gidip X’e bas.</value>
+  </data>
+  <data name="StatusCutOutEmpty" xml:space="preserve">
+    <value>Çıkarılacak kareleri seçmek için oynatma imlecini başlangıç işaretinden uzaklaştır.</value>
+  </data>
+  <data name="StatusCutOutDone" xml:space="preserve">
+    <value>{0} – {1} arası çıkarıldı.</value>
+  </data>
+  <data name="StatusExporting" xml:space="preserve">
+    <value>Dışa aktarılıyor… {0}</value>
+  </data>
+  <data name="StatusExportedOne" xml:space="preserve">
+    <value>{0} yeniden kodlanmadan dışa aktarıldı.</value>
+  </data>
+  <data name="StatusExportedMany" xml:space="preserve">
+    <value>{0} dosya yeniden kodlanmadan {1} klasörüne aktarıldı.</value>
+  </data>
+  <data name="StatusExportedOneExact" xml:space="preserve">
+    <value>{0} tam karelerden kesilerek dışa aktarıldı. Yalnızca kesim noktalarındaki kareler yeniden kodlandı.</value>
+  </data>
+  <data name="StatusExportedManyExact" xml:space="preserve">
+    <value>{0} dosya tam karelerden kesilerek {1} klasörüne aktarıldı. Yalnızca kesim noktalarındaki kareler yeniden kodlandı.</value>
+  </data>
+  <data name="StatusExportCanceled" xml:space="preserve">
+    <value>Dışa aktarma iptal edildi. Yarım kalan dosyalar silindi.</value>
+  </data>
+  <data name="StatusExportFailed" xml:space="preserve">
+    <value>Dışa aktarma başarısız oldu: {0}</value>
+  </data>
+  <data name="StatusCannotExport" xml:space="preserve">
+    <value>Bu seçim dışa aktarılamıyor: {0}</value>
+  </data>
+  <data name="StatusExactUnsupportedCodec" xml:space="preserve">
+    <value>Tam kare kesim yalnızca H.264 ve HEVC videoyu destekler, bu dosya ise {0} kullanıyor. Bunun yerine keyframe hassasiyetini seç.</value>
+  </data>
+  <data name="StatusUnexpectedError" xml:space="preserve">
+    <value>Beklenmeyen hata: {0}</value>
+  </data>
+  <data name="StatusDetailsInLog" xml:space="preserve">
+    <value>Ayrıntılar {0} dosyasına yazıldı.</value>
+  </data>
+  <data name="StatusLanguageRestart" xml:space="preserve">
+    <value>Yeni dil, trim-c bir sonraki açılışında geçerli olacak.</value>
+  </data>
+  <data name="StatusOpenWithOn" xml:space="preserve">
+    <value>trim-c artık video dosyalarının “Birlikte aç” menüsünde görünüyor.</value>
+  </data>
+  <data name="StatusOpenWithOff" xml:space="preserve">
+    <value>trim-c, “Birlikte aç” menüsünden kaldırıldı.</value>
+  </data>
+  <data name="StatusOpenWithFailed" xml:space="preserve">
+    <value>“Birlikte aç” menüsü güncellenemedi: {0}</value>
+  </data>
+  <data name="StatusUndone" xml:space="preserve">
+    <value>Geri alındı.</value>
+  </data>
+  <data name="StatusRedone" xml:space="preserve">
+    <value>Yinelendi.</value>
+  </data>
+  <data name="PlayerLibraryMissing" xml:space="preserve">
+    <value>libmpv bulunamadı. Önizleme için libmpv-2.dll dosyasını trim-c.exe’nin yanına koy.</value>
+  </data>
+  <data name="PlayerCreateFailed" xml:space="preserve">
+    <value>libmpv oynatıcı oluşturamadı.</value>
+  </data>
+  <data name="OpenDialogTitle" xml:space="preserve">
+    <value>Video aç</value>
+  </data>
+  <data name="MediaFilesFilter" xml:space="preserve">
+    <value>Medya dosyaları</value>
+  </data>
+  <data name="FolderDialogTitle" xml:space="preserve">
+    <value>Dışa aktarılacak klasör</value>
+  </data>
+  <data name="ShellFileTypeName" xml:space="preserve">
+    <value>Video (trim-c)</value>
+  </data>
+</root>

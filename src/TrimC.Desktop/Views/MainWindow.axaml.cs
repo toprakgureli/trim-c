@@ -47,6 +47,9 @@ namespace TrimC.Desktop.Views
 
             ICommand? command = e.Key switch
             {
+                Key.Z when ctrl && shift => vm.RedoCommand,
+                Key.Z when ctrl => vm.UndoCommand,
+                Key.Y when ctrl => vm.RedoCommand,
                 Key.Space => vm.TogglePlaybackCommand,
                 Key.Left when ctrl => vm.PreviousKeyframeCommand,
                 Key.Right when ctrl => vm.NextKeyframeCommand,
@@ -57,7 +60,7 @@ namespace TrimC.Desktop.Views
                 Key.I => vm.SetMarkInCommand,
                 Key.O when ctrl => vm.OpenFileCommand,
                 Key.O => vm.SetMarkOutCommand,
-                Key.S => vm.SplitCommand,
+                Key.S when !ctrl => vm.SplitCommand,
                 Key.X => vm.CutOutCommand,
                 Key.Delete => vm.RemoveSelectedCommand,
                 Key.E when ctrl => vm.ExportCommand,

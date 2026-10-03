@@ -9,7 +9,7 @@
 
 A desktop video trimmer that cuts recordings without losing quality. It either copies the original packets untouched, or, when a cut must land on an exact frame, re-encodes only the few frames around each cut point.
 
-![trim-c with two segments selected in keyframe mode](docs/images/editor-keyframe.png)
+![trim-c with the yellow trim handles on the timeline](docs/images/trim.png)
 
 ## Why I built this
 
@@ -19,12 +19,15 @@ trim-c does the opposite. The packets the recorder wrote are copied into the new
 
 ## What it does
 
-- Opens a recording, reads its keyframes and shows them on a zoomable timeline.
-- Lets you mark the parts to keep, or the parts to cut out, frame by frame with the keyboard.
-- Exports each part as its own file, or joins them into one file, in MP4, MKV or MOV.
+- Opens a recording with the whole video selected. Dragging the two yellow handles on the timeline trims it, the way the Movies & TV app does, and the preview follows the handle frame by frame.
+- Keeps manual tools for finer work in the **Advanced** panel: marking parts to keep or cut out with the keyboard, splitting, inverting and a segment list.
+- Undoes and redoes every edit with Ctrl+Z and Ctrl+Y (or Ctrl+Shift+Z).
+- Exports each part as its own file, or joins them into one file, in MP4, MKV or MOV, and opens the output folder when it is done.
+- Appears in the Windows "Open with" menu for common video formats.
+- Has an English and a Turkish interface.
 - Offers two cut precisions:
   - **Keyframe**: fully lossless and instant. A cut can start up to one GOP (typically 1 to 2 seconds) earlier than the selection.
-  - **Exact frame**: starts and ends on exactly the chosen frames, the way film and broadcast editors cut. Only the partial GOPs at the two ends of a segment are re-encoded; everything between them is still copied.
+  - **Exact frame** (the default): starts and ends on exactly the chosen frames, the way film and broadcast editors cut. Only the partial GOPs at the two ends of a segment are re-encoded; everything between them is still copied.
 
 ## How it works
 
@@ -55,17 +58,17 @@ On a 90-second 1080p60 H.264 test recording with a two-second GOP:
 
 The exact frame export has no gap between consecutive video frames or audio packets, and it decodes without errors. On an OBS recording encoded with AMD AMF, where the x264-encoded edges are joined to the AMF-encoded copy, a merge of two exact-frame segments also produced exactly the selected number of frames.
 
-![An exact frame export after cutting out two ranges](docs/images/editor-exact-frame.png)
-
 ## Install
 
 1. Download `trim-c-<version>-win-x64.zip` from the [latest release](https://github.com/toprakgureli/trim-c/releases/latest).
 2. Extract it to any folder.
 3. Run `trim-c.exe`.
 
-Nothing else is needed. The package contains the .NET runtime, FFmpeg and libmpv, and it does not write to the registry or need administrator rights. It runs on 64-bit Windows 10 and 11. To remove trim-c, delete the folder.
+Nothing else is needed. The package contains the .NET runtime, FFmpeg and libmpv, and it does not need administrator rights. It runs on 64-bit Windows 10 and 11.
 
-Logs are written to `%LOCALAPPDATA%\trim-c\logs`. If something goes wrong, the status bar shows the error and the log file holds the details.
+On start, trim-c adds itself to the "Open with" menu of video files for the current user only (under `HKEY_CURRENT_USER\Software\Classes`). It never changes which program opens a format by default. The entry is refreshed on every start, so it follows the folder if you move trim-c. To remove trim-c, clear **⋯ → Show in “Open with” for video files**, then delete the folder.
+
+Settings are stored in `%LOCALAPPDATA%\trim-c\settings.json` and logs in `%LOCALAPPDATA%\trim-c\logs`. If something goes wrong, the status bar shows the error and the log file holds the details.
 
 ### Building from source
 
@@ -79,22 +82,39 @@ cd trim-c
 
 The archive is written to `artifacts/`. For development, `dotnet run --project src/TrimC.Desktop` starts the application. Use FFmpeg 9 or newer: exact frame mode is verified with the FFmpeg 9 build the package ships, and FFmpeg 6.1 produces wrong frame counts in it. The application finds FFmpeg next to the executable, in an `ffmpeg` folder beside it, or on the `PATH`, and libmpv (`libmpv-2.dll`) next to the executable.
 
+Set `TRIMC_SKIP_SHELL_INTEGRATION=1` to keep a development build from registering itself in the "Open with" menu.
+
 The code builds on Linux and macOS as well, but the video preview embeds mpv into a native window, which is only verified on Windows.
 
 ## Usage
 
-1. Open a recording with **Open…**, Ctrl+O, by dropping it on the window, or with `trim-c.exe <file>` (which also makes "Open with" work).
-2. Move to the first frame you want and press **I**, then to the end and press **O**. Repeat for every part you want to keep.
-3. To work the other way round, press **I** on the first frame to remove, move to the first frame to keep and press **X**. The frames in between are cut out and everything else is kept.
-4. Choose the container, whether segments are exported separately or merged, and the cut precision, then press **Export** or Ctrl+E.
+1. Open a recording with **Open…**, Ctrl+O, by dropping it on the window, or by right-clicking a video in Explorer and choosing **Open with → trim-c**.
+2. Drag the yellow handles on the timeline to the first and the last frame you want to keep. The preview shows the frame under the handle and the summary above the timeline shows the kept range. Arrow keys step one frame at a time if you want to check a frame before dropping a handle there.
+3. Press **Export…** or Ctrl+E. The export window asks for the cut precision, the container and the output folder, and remembers your choices for next time.
 
-Files are written next to the source unless you choose another folder. Names contain the exported range, for example `recording-00.00.06.000-00.00.18.000.mkv`, or the label you typed for the segment. Existing files are never overwritten.
+![The export window](docs/images/export-dialog.png)
+
+When the export finishes, the output folder opens with the new file selected. Files are written next to the source unless you choose another folder. Names contain the exported range, for example `recording-00.00.18.300-00.01.04.900.mkv`, or the label you typed for the segment. Existing files are never overwritten.
+
+### Advanced tools
+
+**Advanced** in the top bar opens a side panel for keeping several parts of one recording. It lists the segments, lets you label, remove, invert or reset them, and holds the manual tools:
+
+- Press **I** on the first frame to keep and **O** on the last one to close a segment. Repeat for every part you want.
+- To work the other way round, press **I** on the first frame to remove, move to the first frame to keep and press **X**. The frames in between are cut out and everything else is kept.
+- **S** splits the segment under the playhead, and each part gets its own handles.
+
+![The advanced panel with three segments](docs/images/advanced.png)
+
+The **⋯** menu holds the language (system, English or Turkish, applied on the next start), the "Open with" entry and a shortcut to the log folder.
 
 | Key | Action |
 |---|---|
 | Space | Play or pause |
 | Left / Right | Previous / next frame |
 | Ctrl+Left / Ctrl+Right | Previous / next keyframe |
+| Ctrl+Z | Undo |
+| Ctrl+Y / Ctrl+Shift+Z | Redo |
 | I | Set the start mark |
 | O | Close a segment at the playhead |
 | X | Cut out the frames between the start mark and the playhead |
@@ -105,7 +125,7 @@ Files are written next to the source unless you choose another folder. Names con
 | Ctrl+E | Export |
 | Esc | Cancel a running export |
 
-On the timeline, click or drag to seek, scroll to pan and Ctrl+scroll to zoom. Orange ticks are keyframes.
+On the timeline, drag a yellow handle to trim, click or drag anywhere else to seek, scroll to pan and Ctrl+scroll to zoom. Orange ticks are keyframes, and the dimmed areas are left out of the export.
 
 ## Architecture
 
@@ -120,9 +140,9 @@ flowchart LR
 
 | Project | Responsibility |
 |---|---|
-| `TrimC.Core` | Media model, keyframe index with per-GOP packet counts, cut list, export planning. No I/O, no UI, no FFmpeg. |
+| `TrimC.Core` | Media model, keyframe index with per-GOP packet counts, cut list with undo history, export planning. No I/O, no UI, no FFmpeg. |
 | `TrimC.FFmpeg` | Reads media and keyframes with ffprobe and runs export plans with ffmpeg. |
-| `TrimC.Desktop` | The Avalonia application: timeline control, libmpv preview, view models. |
+| `TrimC.Desktop` | The Avalonia application: timeline control, libmpv preview, view models, settings, localization and the "Open with" registration. |
 
 Exporting is split into planning and execution. `ExportPlanner` turns segments and options into an `ExportPlan`, a list of tool-independent steps (copy a range, encode a range, join parts). `FFmpegExportExecutor` turns each step into an ffmpeg command. Because planning is pure, every decision about keyframes, offsets, stream selection and file names is covered by unit tests that run without FFmpeg.
 
@@ -134,7 +154,7 @@ dotnet test --solution trim-c.slnx
 dotnet format trim-c.slnx --verify-no-changes
 ```
 
-The integration tests generate a clip with B-frames and run real exports through ffmpeg, checking frame counts, keyframe placement and gaps on the timeline. They run when FFmpeg is on the `PATH` or `TRIMC_FFMPEG_DIR` points to it, and are skipped otherwise. CI runs everything on Windows and Linux.
+The integration tests generate a clip with B-frames and run real exports through ffmpeg, checking frame counts, keyframe placement and gaps on the timeline. They run when FFmpeg is on the `PATH` or `TRIMC_FFMPEG_DIR` points to it, and are skipped otherwise. The "Open with" tests write to a scratch registry key, so they only run in CI or when `TRIMC_RUN_REGISTRY_TESTS` is set. CI runs everything on Windows and Linux.
 
 The code follows the [dotnet/runtime coding style](https://github.com/dotnet/runtime/blob/main/docs/coding-guidelines/coding-style.md), and `.editorconfig` is derived from the one in dotnet/runtime. Public APIs follow the [Framework Design Guidelines](https://learn.microsoft.com/dotnet/standard/design-guidelines/). The rules are enforced at build time: `AnalysisLevel` is `latest-all`, code style is checked during the build and warnings are errors.
 
@@ -143,7 +163,6 @@ The code follows the [dotnet/runtime coding style](https://github.com/dotnet/run
 - Exact frame mode supports H.264 and HEVC video. Other codecs can be cut in keyframe mode.
 - In exact frame mode, transport stream parts carry only video and audio, so subtitle and data streams are left out.
 - In keyframe mode, the end of a cut can include one or two extra frames when the video has B-frames, because those frames are needed to decode the last selected ones.
-- The interface is in English.
 
 ## License
 

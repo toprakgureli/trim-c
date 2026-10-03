@@ -12,7 +12,13 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- The interface ships in English and Turkish; satellite assemblies for other languages would only add size. -->
+    <SatelliteResourceLanguages>en;tr</SatelliteResourceLanguages>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TrimC.Desktop.Tests" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\TrimC.Core\TrimC.Core.csproj" />
