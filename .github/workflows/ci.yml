@@ -39,7 +39,7 @@ jobs:
         if: failure()
         shell: bash
         run: |
-          sed 's/\[[0-9;]*m//g' test-output.txt | grep -iE 'failed|error|exception|assert|expected|actual' | head -n 80 | while IFS= read -r line; do echo "::error::${line}"; done || true
+          sed -E 's/\x1B\[[0-9;]*m//g' test-output.txt | grep -iE 'failed|error|exception|assert|expected|actual' | head -n 80 | while IFS= read -r line; do echo "::error::${line}"; done || true
 
       - name: Formatting
         if: runner.os == 'Linux'
