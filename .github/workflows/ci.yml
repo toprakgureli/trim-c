@@ -20,10 +20,16 @@ jobs:
         with:
           global-json-file: global.json
 
-      # The integration tests drive the real ffmpeg and are skipped where it is not installed.
+      # The integration tests drive the real ffmpeg and are skipped where it is not installed. Linux uses the Linux build of
+      # the same pinned FFmpeg release that the Windows package ships, so the tests verify the version users receive.
       - name: Install FFmpeg
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install --yes ffmpeg
+        run: |
+          curl -sSL -o ffmpeg.tar.xz https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-01-13-06/ffmpeg-n9.0.2-22-g46d8f462ee-linux64-gpl-9.0.tar.xz
+          echo "a6170faecf757381ad0338d7a6ba26e97c2ebe2b9c1568633421e15d1ed436a9  ffmpeg.tar.xz" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/ffmpeg"
+          tar -xJf ffmpeg.tar.xz -C "$RUNNER_TEMP/ffmpeg" --strip-components=2 --wildcards '*/bin/*'
+          echo "TRIMC_FFMPEG_DIR=$RUNNER_TEMP/ffmpeg" >> "$GITHUB_ENV"
 
       - name: Build
         run: dotnet build trim-c.slnx --configuration Release

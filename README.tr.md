@@ -77,7 +77,7 @@ cd trim-c
 ./build/package.ps1
 ```
 
-Arşiv `artifacts/` klasörüne yazılır. Geliştirme sırasında uygulamayı `dotnet run --project src/TrimC.Desktop` ile başlatabilirsin. Uygulama FFmpeg'i çalıştırılabilir dosyanın yanında, yanındaki `ffmpeg` klasöründe ya da `PATH` üzerinde, libmpv'yi (`libmpv-2.dll`) ise çalıştırılabilir dosyanın yanında arar.
+Arşiv `artifacts/` klasörüne yazılır. Geliştirme sırasında uygulamayı `dotnet run --project src/TrimC.Desktop` ile başlatabilirsin. FFmpeg 9 veya üzerini kullan. Tam kare modu, paketle gelen FFmpeg 9 derlemesiyle doğrulandı, FFmpeg 6.1 ise bu modda yanlış kare sayıları üretiyor. Uygulama FFmpeg'i çalıştırılabilir dosyanın yanında, yanındaki `ffmpeg` klasöründe ya da `PATH` üzerinde, libmpv'yi (`libmpv-2.dll`) ise çalıştırılabilir dosyanın yanında arar.
 
 Kod Linux ve macOS'te de derleniyor ancak video önizlemesi mpv'yi yerel bir pencereye yerleştirdiği için yalnızca Windows'ta doğrulandı.
 

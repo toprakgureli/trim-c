@@ -77,7 +77,7 @@ cd trim-c
 ./build/package.ps1
 ```
 
-The archive is written to `artifacts/`. For development, `dotnet run --project src/TrimC.Desktop` starts the application; it finds FFmpeg next to the executable, in an `ffmpeg` folder beside it, or on the `PATH`, and libmpv (`libmpv-2.dll`) next to the executable.
+The archive is written to `artifacts/`. For development, `dotnet run --project src/TrimC.Desktop` starts the application. Use FFmpeg 9 or newer: exact frame mode is verified with the FFmpeg 9 build the package ships, and FFmpeg 6.1 produces wrong frame counts in it. The application finds FFmpeg next to the executable, in an `ffmpeg` folder beside it, or on the `PATH`, and libmpv (`libmpv-2.dll`) next to the executable.
 
 The code builds on Linux and macOS as well, but the video preview embeds mpv into a native window, which is only verified on Windows.
 
