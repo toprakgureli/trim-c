@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TrimC.Desktop/TrimC.Desktop.csproj" />
+    <Project Path="src/TrimC.Core/TrimC.Core.csproj" />
+    <Project Path="src/TrimC.FFmpeg/TrimC.FFmpeg.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TrimC.Core.Tests/TrimC.Core.Tests.csproj" />
+    <Project Path="tests/TrimC.FFmpeg.Tests/TrimC.FFmpeg.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,32 @@
+<Project>
+
+  <!--
+    Shared build configuration for every project in the repository.
+    Code style is defined in .editorconfig and enforced at build time; analyzer and
+    compiler warnings are treated as errors so that the main branch stays warning free.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <Features>strict</Features>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <AnalysisLevel>latest-all</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Company>Toprak Gureli</Company>
+    <Product>trim-c</Product>
+    <Copyright>Copyright (c) Toprak Gureli. All rights reserved.</Copyright>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+</Project>

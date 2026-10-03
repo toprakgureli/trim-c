@@ -1,0 +1,21 @@
+<Project>
+
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!--
+    Test projects follow the dotnet/runtime test conventions: Method_Scenario_Expectation names (CA1707),
+    public test classes discovered by xUnit (CA1515), and no XML documentation comments (CS1591).
+    The documentation file itself stays enabled because IDE0005 requires it to run during the build.
+    Tests run on the xUnit synchronization context, so ConfigureAwait is not used (CA2007, xUnit1030).
+  -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <OutputType>Exe</OutputType>
+    <NoWarn>$(NoWarn);CA1707;CA1515;CA2007;CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+</Project>

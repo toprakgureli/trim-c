@@ -1,0 +1,32 @@
+// Copyright (c) Toprak Gureli. All rights reserved.
+// Licensed under the MIT license. See LICENSE in the repository root for details.
+
+using System;
+
+namespace TrimC.Editing
+{
+    /// <summary>
+    /// A user-defined region of the source media that will be exported.
+    /// </summary>
+    /// <remarks>
+    /// Segments are immutable values. Edits produce a new instance that keeps the same <see cref="Id"/>,
+    /// which lets the UI preserve selection and identity across changes without tracking object references.
+    /// </remarks>
+    public sealed record Segment
+    {
+        /// <summary>
+        /// Gets the stable identifier of the segment.
+        /// </summary>
+        public required Guid Id { get; init; }
+
+        /// <summary>
+        /// Gets the region of the timeline covered by the segment.
+        /// </summary>
+        public required TimeRange Range { get; init; }
+
+        /// <summary>
+        /// Gets an optional user-provided label that is used when naming exported files.
+        /// </summary>
+        public string? Label { get; init; }
+    }
+}

@@ -1,0 +1,8 @@
+# Normalize text files to LF in the repository; .editorconfig defines the formatting rules.
+* text=auto eol=lf
+
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+*.png binary
+*.svg text

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Domain layer: media model, edit timeline and export planning.
+    This project has no dependency on FFmpeg, the UI framework or the file system layout,
+    which keeps every editing rule testable in isolation.
+  -->
+  <PropertyGroup>
+    <RootNamespace>TrimC</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TrimC.Core.Tests" />
+  </ItemGroup>
+
+</Project>

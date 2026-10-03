@@ -1,0 +1,28 @@
+# Build output
+bin/
+obj/
+artifacts/
+publish/
+
+# Test results
+TestResults/
+*.trx
+
+# IDE and editor state
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.swp
+
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Runtime dependencies are supplied by the user and never committed
+ffmpeg*.exe
+ffprobe*.exe
+ffplay*.exe
+libmpv*.dll

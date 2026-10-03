@@ -1,0 +1,6 @@
+# Settings specific to the desktop application; everything else is inherited from the repository root.
+
+[*.cs]
+# CA1812: view models, services and controls are created by the dependency injection container or by compiled XAML,
+# neither of which is visible to the analyzer, so every such type would be reported as never instantiated.
+dotnet_diagnostic.CA1812.severity = none
